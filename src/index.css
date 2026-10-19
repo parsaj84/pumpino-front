@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-vazirmatn: 'Vazirmatn', 'Shabnam', 'Sahel', 'Noto Sans Arabic', 'IRANSans', system-ui, -apple-system, sans-serif;
+    --font-shabnam: 'Shabnam', 'Vazirmatn', 'Sahel', system-ui, sans-serif;
+    --font-sahel: 'Sahel', 'Vazirmatn', 'Shabnam', system-ui, sans-serif;
+  }
+
+
+
+
+  html, body {
+    font-family: var(--font-vazirmatn);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01", "ss02";
+    -webkit-tap-highlight-color: transparent;
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
+    line-height: 1.6;
+  }
+
+  *, ::before, ::after {
+    font-family: Vazirmatn;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  
+  button, input, select, textarea, optgroup {
+    font-family: inherit !important;
+  }
+
+  /* Dynamic font family selection helpers */
+  body.font-vazirmatn {
+    font-family: var(--font-vazirmatn) !important;
+  }
+  body.font-shabnam {
+    font-family: var(--font-shabnam) !important;
+  }
+  body.font-sahel {
+    font-family: var(--font-sahel) !important;
+  }
+
+  /* Prevent iPhone Safari auto-zoom on inputs by ensuring at least 16px font size on touch screens */
+  @media (max-width: 768px) {
+    input[type="text"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="search"],
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Keep mono font readable for codes/prices with Persian digits support */
+  .font-mono {
+    font-family: 'Vazirmatn', monospace, ui-monospace, SFMono-Regular !important;
+  }
+
+  /* Safe Area Padding Utilities for notched iPhones */
+  .pb-safe {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+.pagintaion-btn {
+  width: 30px;
+  height: 30px;
+  border :2px solid #9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: #444;
+  box-shadow: 0px 0px 0px 1.5px rgba(200 , 200 , 200 , 0.2);
+  margin : 0px 3px;
+}
+
+.pagintaion-btn.active {
+  background-color: var(--color-sky-600);
+  color: var(--color-white);
+
+}
+
+
+.spinner {
+  border-radius: 100%;
+  border: 1.5px solid white;
+  animation: spin 1s ease-in-out  infinite;
+}
+
+@keyframes spin {
+    from  { 
+      transform: rotate(0deg);
+    }
+     to {
+      transform: rotate(360deg);
+     }
+  }
+
