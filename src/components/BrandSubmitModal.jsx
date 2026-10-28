@@ -1,13 +1,16 @@
 import API from "@/api/api";
 import { Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import Spinner from "./Spinner";
+import { MainContext } from "../contexts/MainContext";
 
-export default function BrandSubmitModal({ setIsQuickBrandModalOpen , setBrands }) {
-    const [ brandName , setBrandName ] =useState("")
+export default function BrandSubmitModal({ setIsQuickBrandModalOpen, setBrands }) {
+    const mainContextValue = useContext(MainContext)
+    
+    const [brandName, setBrandName] = useState("")
     const [brandCountry, setBrandCountry] = useState("")
-    const [isSubmiting , setIsSubmiting] = useState(false)
-    const [error , setError] = useState("")
+    const [isSubmiting, setIsSubmiting] = useState(false)
+    const [error, setError] = useState("")
 
     const handleCreateQuickBrand = async (e) => {
         try {
@@ -17,23 +20,24 @@ export default function BrandSubmitModal({ setIsQuickBrandModalOpen , setBrands 
                 setError("لطفا هر دو فیلد را پر کنید")
             }
             const brandData = {
-                name : brandName,
-                country : brandCountry
+                name: brandName,
+                country: brandCountry
             }
             setIsSubmiting(true)
-            const {data   , status} = await API.post("products/admin-brand-create/", brandData )
-            console.log(data , status, "brand response payload")
+            const { data, status } = await API.post("products/admin-brand-create/", brandData)
+
             if (status === 200) {
-                setBrands(prev => [...prev , data.brand])
+                setBrands(prev => [...prev, data.brand])
                 setIsQuickBrandModalOpen(false)
-                return ;
+                return;
             } else {
                 const e = data.error_des || data.detail || "خطا"
-                console.log(e)
+                mainContextValue?.onError(typeof e === "object" ? mainContextValue.onError(compileErrorOBJToArray(e)?.join(",")) : e)
             }
             setIsSubmiting(false)
-        } catch(e) {
-            console.log(e)
+        } catch (e) {
+            mainContextValue?.onError("خطایی غیرمنتظره رخ داده است!")
+
             setIsSubmiting(false)
 
         }
@@ -61,7 +65,7 @@ export default function BrandSubmitModal({ setIsQuickBrandModalOpen , setBrands 
                         <label className="font-bold text-slate-700 block mb-1">نام فارسی برند: *</label>
                         <input
                             type="text"
-                            
+
                             placeholder="مثلاً: ابارا یا پنتکس"
                             value={brandName}
                             onChange={(e) => setBrandName(e.target.value)}
@@ -82,10 +86,10 @@ export default function BrandSubmitModal({ setIsQuickBrandModalOpen , setBrands 
                         />
                     </div>
 
-                    {error && 
-                    <p  className="my-1.5 text-red-500">
-                        {error}
-                    </p>
+                    {error &&
+                        <p className="my-1.5 text-red-500">
+                            {error}
+                        </p>
                     }
 
 
@@ -102,9 +106,9 @@ export default function BrandSubmitModal({ setIsQuickBrandModalOpen , setBrands 
                             className="px-5 py-2 rounded-xl bg-indigo-600 text-white font-extrabold hover:bg-indigo-700 shadow"
                         >
                             {isSubmiting ?
-                             <Spinner borderMainColor={"white"} borderTopColor={"blue"} borderWidth={1.75} height={17.5} width={17.5}/>
-                             : 
-                            "ذخیره برند"}
+                                <Spinner borderMainColor={"white"} borderTopColor={"blue"} borderWidth={1.75} height={17.5} width={17.5} />
+                                :
+                                "ذخیره برند"}
                         </button>
                     </div>
                 </form>

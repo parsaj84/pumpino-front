@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useDeferredValue, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useDeferredValue, useRef, useContext } from 'react';
 import {
   FilePlus,
   X,
@@ -7,26 +7,20 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
-  AlertCircle,
   Building2,
-  Phone,
-  MapPin,
   Truck,
-  CreditCard,
-  Printer,
   DollarSign,
   Package,
-  FileText,
   Motorbike
 } from 'lucide-react';
-import { Product, StoreSettings, CustomerProfile, CustomerOrder, OrderItem, PaymentStatus, OrderStatus } from '../types';
+import { Product, StoreSettings, CustomerProfile, CustomerOrder, OrderItem, PaymentStatus, OrderStatus, Province, City, Freight } from '../types';
 import { formatPrice, toPersianDigits } from '../utils/formatters';
-import { loadCustomerProfile } from '../utils/storage';
 import SelectInput from './SelectInput';
 import fetchData from '../utils/fetchData';
 import Skeleton from 'react-loading-skeleton';
 import API from '@/api/api';
 import Spinner from './Spinner';
+import { MainContext } from '../contexts/MainContext';
 
 interface CreateManualInvoiceModalProps {
   products: Product[];
@@ -39,29 +33,29 @@ interface CreateManualInvoiceModalProps {
 }
 
 export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> = ({
-  products,
-  orders,
   storeSettings,
   isOpen,
   onClose,
   onSaveInvoice,
-  onPrintInvoice
 }) => {
   if (!isOpen) return null;
 
+  const mainContextValue = useContext(MainContext)
 
 
   const [cityError, setCityError] = useState("")
   const [provinceError, setProvinceError] = useState("")
   const [freightError, setFreightError] = useState("")
-  const [selectedCityId, setSelectedCityId] = useState(null)
-  const [selectedProvinceId, setSelectedProvinceId] = useState(null)
-  const [selectedFreightId, setSelectedFreightId] = useState(null)
-  const [locatiosData, setLocationsData] = useState([])
-  const [freights, setFreights] = useState([])
+  const [selectedCityId, setSelectedCityId] = useState<City["pk"] | null>(null)
+  const [selectedProvinceId, setSelectedProvinceId] = useState<Province["pk"] | null>(null)
+  const [selectedFreightId, setSelectedFreightId] = useState<null | Freight["pk"]>(null)
+  const [locatiosData, setLocationsData] = useState<Province[]>([])
+  const [freights, setFreights] = useState<(Freight & { city: number | string, province: number | string })[]>([])
   const [isLoadingLocations, setIsLoadingLocations] = useState(false)
   const [isLoadingFreghits, setIsLoadingFreights] = useState(false)
   const [deliveryType, setDeliveryType] = useState<"INPERSON_PICKUP" | "MOTORCYCLE_COURIER" | "PICK_UP_FROM_FREIGHT_TERMINAL">("INPERSON_PICKUP")
+
+  locatiosData.forEach(ele => ele.selected)
 
   useEffect(() => {
     fetchData("users/fetch-cities-provinces/", (response) => {
@@ -71,117 +65,69 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
 
         setIsLoadingLocations(false)
       } else {
-        const e = "ارور"
-        console.log(e)
+        mainContextValue?.onError("خطا در بارگذاری اماکن")
       }
-    }, () => { setIsLoadingLocations(true) });
+    }, () => { setIsLoadingLocations(true) }, () => mainContextValue?.onError("خطا در بارگذاری اماکن"));
     fetchData("orders/freight-list/", (response) => {
       if (response.data, response.status === 200) {
         setFreights(response.data);
         setIsLoadingFreights(false);
+      } else {
+        mainContextValue?.onError("خطا در بارگذاری بابری ها")
       }
-    }, () => setIsLoadingFreights(true));
+    }, () => setIsLoadingFreights(true), () => mainContextValue?.onError("خطا در بارگذاری باربری"));
   }, [])
 
-  const provinces = locatiosData?.map((ele, idx) => {
+  const provinces = useMemo(() => {
+    return (
+      locatiosData?.map((ele, idx) => {
 
-    if (selectedProvinceId) {
-      ele.selected = selectedProvinceId === ele.pk
-    }
-    return ele
-  })
+        if (selectedProvinceId) {
+          ele.selected = selectedProvinceId === ele.pk
+        }
+        return ele
+      }) || []
+    )
+  }, [locatiosData, selectedProvinceId])
+
   const selectedProvince = provinces.find(ele => ele.selected)
-  const cities = selectedProvince?.cities?.map((ele, idx) => {
-    if (selectedCityId && selectedProvince?.cities.find(ele => ele.pk === selectedCityId)) {
-      ele.selected = ele.pk === selectedCityId
-    }
-    return ele
-  })
 
-  const filteredFreights = freights.filter((ele) => {
-    return ele.province === provinces.find(ele => ele.selected)?.pk && cities.find(ele => ele.selected)?.pk === ele.city
-  }).map((ele, index) => {
+  const cities = useMemo(() => {
+    return (
+      selectedProvince?.cities?.map((ele, idx) => {
+        if (selectedCityId && selectedProvince?.cities.find(ele => ele.pk === selectedCityId)) {
+          ele.selected = ele.pk === selectedCityId
+        }
+        return ele
+      }) || []
+    )
+  }, [selectedCityId, selectedProvince])
 
-    if (selectedFreightId) {
-      ele.selected = ele.pk === selectedFreightId
-      return ele
-    }
-    ele.selected = index === 0
-    return ele
-  });
+  const filteredFreights = useMemo(() => {
+    return freights.filter((ele) => {
+      return ele.province === provinces.find(ele => ele.selected)?.pk && cities.find(ele => ele.selected)?.pk === ele.city
+    }).map((ele, index) => {
 
-
-
-  // Extract list of registered/previous customers
-  const registeredCustomers = useMemo(() => {
-    const list: CustomerProfile[] = [];
-    const seenPhones = new Set<string>();
-
-    // Add logged in customer profile if exists
-    const localProfile = loadCustomerProfile();
-    if (localProfile && localProfile.mobilePhone) {
-      list.push(localProfile);
-      seenPhones.add(localProfile.mobilePhone);
-    }
-
-    // Add from orders
-    orders.forEach(o => {
-      if (o.customerProfile && o.customerProfile.mobilePhone && !seenPhones.has(o.customerProfile.mobilePhone)) {
-        seenPhones.add(o.customerProfile.mobilePhone);
-        list.push(o.customerProfile);
+      if (selectedFreightId) {
+        ele.selected = ele.pk === selectedFreightId
+        return ele
       }
+      ele.selected = index === 0
+      return ele
     });
-
-    return list;
-  }, [orders]);
-
-  // Selected customer profile state
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('custom');
-  const [customerFullName, setCustomerFullName] = useState('');
-  const [customerStoreName, setCustomerStoreName] = useState('');
-  const [customerMobile, setCustomerMobile] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerProvinceCity, setCustomerProvinceCity] = useState('تهران');
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [customerFreight, setCustomerFreight] = useState('باربری جهانگیر');
+  }, [freights, provinces, cities, selectedFreightId])
 
   const [formConfig, setFormConfig] = useState([
-    { code: "fname", label: "نام خریدار", value: "", regex: null, isNumeric: false, required: true, error: null },
-    { code: "lname", label: "نام خانوادگی خریدار", value: "", regex: null, isNumeric: false, required: true, error: null },
-    { code: "phone", label: "شماره تلفن خریدار", value: "", regex: /^09\d{9}$/, isNumeric: false, required: true, error: null },
-    { code: "store_name", label: "نام فروشگاه", value: "", regex: null, isNumeric: false, required: false, error: null },
-    { code: "address", label: "ادرس", value: "", regex: null, isNumeric: false, required: true, isLongTextField: true, error: null },
+    { code: "fname", label: "نام خریدار", value: "", regex: null, isNumeric: false, required: true, error: "" },
+    { code: "lname", label: "نام خانوادگی خریدار", value: "", regex: null, isNumeric: false, required: true, error: "" },
+    { code: "phone", label: "شماره تلفن خریدار", value: "", regex: /^09\d{9}$/, isNumeric: false, required: true, error: "" },
+    { code: "store_name", label: "نام فروشگاه", value: "", regex: null, isNumeric: false, required: false, error: "" },
+    { code: "address", label: "ادرس", value: "", regex: null, isNumeric: false, required: true, isLongTextField: true, error: "" },
   ])
   // When customer dropdown changes
-  const handleSelectCustomer = (custId: string) => {
-    setSelectedCustomerId(custId);
-    if (custId === 'custom') {
-      setCustomerFullName('');
-      setCustomerStoreName('');
-      setCustomerMobile('');
-      setCustomerPhone('');
-      setCustomerProvinceCity('تهران');
-      setCustomerAddress('');
-      setCustomerFreight('باربری جهانگیر');
-    } else {
-      const found = registeredCustomers.find(c => c.id === custId || c.mobilePhone === custId);
-      if (found) {
-        setCustomerFullName(found.fullName || '');
-        setCustomerStoreName(found.storeName || '');
-        setCustomerMobile(found.mobilePhone || '');
-        setCustomerPhone(found.telephone || '');
-        setCustomerProvinceCity(found.provinceCity || 'تهران');
-        setCustomerAddress(found.address || '');
-        setCustomerFreight(found.freightName || 'باربری جهانگیر');
-      }
-    }
-  };
 
-  // Order & Payment Details
-  const [orderNumber] = useState(() => `MAN-1403-${Math.floor(1000 + Math.random() * 9000)}`);
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('paid_approved');
-  const [paymentReceiptRef, setPaymentReceiptRef] = useState('');
-  const [adminNote, setAdminNote] = useState('فاکتور دستی صادر شده توسط مدیریت فروشگاه');
+
+
   const [isSending, setIsSending] = useState(false)
   // Items in invoice
   const [invoiceItems, setInvoiceItems] = useState<OrderItem[]>([]);
@@ -196,7 +142,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
   // When product is selected from search
   const handleSelectProductToDraft = (product: Product) => {
     setSelectedProduct(product);
-    setItemPriceToman(product.priceToman);
+    setItemPriceToman(product.price);
     setItemDiscountPercent(0);
     setItemQty(1);
     setProductSearch('');
@@ -209,17 +155,18 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
     }
 
     const off = itemDiscountPercent || selectedProduct.off
-    const price = (itemPriceToman ? (Number(itemPriceToman) * ((100 - off) / 100)) : (selectedProduct.price) * ((100 - off) / 100));
+    const price = (itemPriceToman ? (Number(itemPriceToman) * ((100 - (off || 0)) / 100)) : (selectedProduct.price) * ((100 - (off || 0)) / 100));
     const qty = Math.max(1, itemQty);
     setInvoiceItems(prev => {
-      const output = [...prev].filter(ele => ele.product.pk !== selectedProduct.pk)
-      const newItem = {
+      const output = [...prev].filter(ele => ele.product?.pk !== selectedProduct.pk)
+      const newItem: OrderItem = {
         product: selectedProduct,
         quantity: qty,
         quantity_accepted_by_admin: qty,
         price: price,
         price_accepted_by_admin: price,
-        off: off
+        off: off,
+
       }
       output.push(newItem)
       return output
@@ -236,13 +183,21 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
     setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
   };
 
-  const handleUpdateItemQty = (itemProductId: number, newQty: number) => {
+  const handleUpdateItemQty = (itemProductId: number | null | string, newQty: number) => {
+    if (!itemProductId) {
+      mainContextValue?.onError("ایدی ثبت نشده است!لطفا صفحه را رفرش کرده و دوباره ادامه دهید")
+      return;
+    }
     const qty = Math.max(1, newQty);
-    setInvoiceItems(prev => prev.map((item) => itemProductId === item.product?.pk ? { ...item, quantity: newQty, quantity_accepted_by_admin: newQty } : item));
+    setInvoiceItems(prev => prev.map((item) => itemProductId === item.product?.pk ? { ...item, quantity: qty, quantity_accepted_by_admin: newQty } : item));
   };
 
-  const handleUpdateItemPrice = (itemProductId: number, newPrice: number) => {
-    setInvoiceItems(prev => prev.map((item) => itemProductId === item.product?.pk ? { ...item, price: Math.max(0, newPrice * ((100 - item.off) / 100)), price_accepted_by_admin: Math.max(0, newPrice * ((100 - item.off) / 100)) } : item));
+  const handleUpdateItemPrice = (itemProductId: number | null | string, newPrice: number) => {
+    if (!itemProductId) {
+      mainContextValue?.onError("ایدی ثبت نشده است!لطفا صفحه را رفرش کرده و دوباره ادامه دهید")
+      return;
+    }
+    setInvoiceItems(prev => prev.map((item) => itemProductId === item.product?.pk ? { ...item, price: Math.max(0, newPrice * ((100 - (Number(item.off) || 0)) / 100)), price_accepted_by_admin: Math.max(0, newPrice * ((100 - (Number(item.off) || 0)) / 100)) } : item));
   };
 
   // Calculations
@@ -255,18 +210,20 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
     }
     invoiceItems.forEach(item => {
       const { quantity } = item
-      priceWithOff += (item.price) * quantity
-      total += (item.price * (1 / ((100 - item.off) / 100))) * quantity
+      priceWithOff += (item.price || 0) * (quantity || 0)
+      total += ((item.price || 0) * (1 / ((100 - (Number(item.off) || 0)) / 100))) * (quantity || 0)
     })
     return { priceWithOff, total }
   }
 
 
-  const { priceWithOff, total } = totalCalculator()
+  const { priceWithOff, total } = useMemo(() => totalCalculator() , [
+    invoiceItems
+  ])
   const discouted = total - priceWithOff
 
   // Search matches
-  const [productMatches, setProductMatches] = useState([])
+  const [productMatches, setProductMatches] = useState<Product[]>([])
   const [productSearch, setProductSearch] = useState('');  // Submit invoice creation
 
   const deferedProductSearch = useDeferredValue(productSearch)
@@ -276,6 +233,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
     page: page.toString(),
     searchQuery: deferedProductSearch
   }), [deferedProductSearch, page])
+
   useEffect(() => {
     setPage(1);
     setProductMatches([]);
@@ -283,12 +241,10 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
   }, [deferedProductSearch]);
   useEffect(() => {
     const timeOutId = setTimeout(() => {
-
-
       if (filterPayload.searchQuery) {
         const urlSearchParams = new URLSearchParams(filterPayload)
         fetchData("products/" + "?" + urlSearchParams.toString(), ({ data, status }) => {
-          console.log(data)
+     
           if (status === 200) {
             if (page === 1) {
               setProductMatches(data.products)
@@ -299,16 +255,16 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
 
           }
           else {
-            const e = "خطا"
-            console.log(e)
+            mainContextValue?.onError("خطا در دریافت اطلاعات")
           }
 
-        })
+        }  , () => mainContextValue?.onError("خطا در دیافت اطلاعات"))
       }
     }, 750)
     return () => clearTimeout(timeOutId)
   }, [filterPayload])
-  const scrollEventTimeout = useRef(null)
+  const scrollEventTimeout = useRef<null | NodeJS.Timeout | null>(null)
+
   const handleSubmitInvoice = async () => {
     try {
 
@@ -317,7 +273,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
         return;
       }
 
-      const orderData = {}
+      const orderData: Record<string, (string | number | OrderItem[])> = {}
       let isValid = true
       const compiledFormConfig = formConfig.map(ele => {
         if (ele.required && !ele.value) {
@@ -345,13 +301,13 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
           isValid = false
           setProvinceError("مقدار این فیلد اجباری است.")
         }
-        if (!selectedFreightId && (filteredFreights.find(ele => ele.selected) === -1)) {
+        if (!selectedFreightId && (filteredFreights?.find(ele => ele.selected))) {
           isValid = false
           setFreightError("مقدار این فیلد اجباری است.")
         }
-        orderData["freight_id"] = selectedFreightId || filteredFreights.find(ele => ele.selected).pk
-        orderData["city_id"] = selectedCityId
-        orderData["province_id"] = selectedProvinceId
+        orderData["freight_id"] = selectedFreightId || filteredFreights.find(ele => ele.selected)?.pk || ""
+        orderData["city_id"] = selectedCityId || ""
+        orderData["province_id"] = selectedProvinceId || ""
       }
 
       if (!isValid) {
@@ -369,12 +325,22 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
       }
       else {
         const e = data.error_des || data.detail || "خطا"
-        console.log(e)
+        if (typeof e === "object") {
+          mainContextValue?.onError("لطفا اطلاعات را درست وارد کنید!")
+          setFormConfig(prev => [...prev].map(ele => {
+            if (ele.code in data.error_des) {
+              ele.error = data.error_des[ele.code]
+            } 
+            return ele
+          }))
+        } else {
+            mainContextValue?.onError("خطایی غیرمنتظره رخ داد")
+        }
       }
       setIsSending(false)
       onClose();
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطایی غیرمنظتره رخ داد!")
       setIsSending(false)
     }
   };
@@ -397,9 +363,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
             <div>
               <h3 className="font-extrabold text-base sm:text-lg text-slate-900 flex items-center gap-2">
                 <span>صدور دستی فاکتور رسمی فروش</span>
-                <span className="bg-sky-100 text-sky-800 text-xs px-2.5 py-0.5 rounded-full font-mono font-bold">
-                  {orderNumber}
-                </span>
+
               </h3>
               <p className="text-xs text-slate-500 font-medium">
                 صدور مستقیم فاکتور به نام مشتریان ثبت‌نام شده یا خریداران جدید
@@ -423,23 +387,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
               <span>۱. مشخصات مشتری / خریدار:</span>
             </h4>
 
-            {registeredCustomers.length > 0 && (
-              <div className="flex items-center gap-2 text-xs w-full sm:w-auto">
-                <span className="text-slate-500 font-bold shrink-0">انتخاب از ثبت‌نامی‌ها:</span>
-                <select
-                  value={selectedCustomerId}
-                  onChange={(e) => handleSelectCustomer(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 font-bold text-slate-800 focus:outline-none focus:border-sky-500 cursor-pointer w-full sm:w-auto"
-                >
-                  <option value="custom">✍️ خریدار جدید (تکمیل دستی)</option>
-                  {registeredCustomers.map((cust, idx) => (
-                    <option key={cust.id || idx} value={cust.id || cust.mobilePhone}>
-                      👤 {cust.fullName} {cust.storeName ? `(${cust.storeName})` : ''} - {cust.mobilePhone}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -509,7 +457,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
             {deliveryType === 'PICK_UP_FROM_FREIGHT_TERMINAL' &&
               <div>
                 <div className="my-1">
-                  <SelectInput items={provinces} label={"استان"} isLoadingItems={isLoadingLocations} labelProperty={"name"} selectedItem={provinces.find(ele => ele.selected)} onItemSelected={(item) => { setSelectedProvinceId(item.pk); setSelectedFreightId(null) }} />
+                  <SelectInput items={provinces} label={"استان"} isLoadingItems={isLoadingLocations} labelProperty={"name"} selectedItem={provinces.find(ele => ele.selected)} onItemSelected={(item) => { setSelectedProvinceId(item?.pk || null); setSelectedFreightId(null) }} />
 
                   {provinceError && <p className='text-red-500 text-sm'>
                     {provinceError}
@@ -517,13 +465,13 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
                 </div>
 
                 <div className="my-1">
-                  <SelectInput items={cities} label={"شهر"} isLoadingItems={isLoadingLocations} labelProperty={"name"} onItemSelected={(item) => { setSelectedCityId(item?.pk); setSelectedFreightId(null) }} selectedItem={cities?.find(ele => ele.selected)} />
+                  <SelectInput items={cities} label={"شهر"} isLoadingItems={isLoadingLocations} labelProperty={"name"} onItemSelected={(item: City) => { setSelectedCityId(item?.pk || null); setSelectedFreightId(null) }} selectedItem={cities?.find(ele => ele.selected) || cities[0]} />
                   {cityError && <p className='text-red-500 text-sm'>
                     {cityError}
                   </p>}
                 </div>
                 <div className="my-1">
-                  <SelectInput items={filteredFreights} label={"باربری"} selectedItem={filteredFreights.find(ele => ele.selected)} isLoadingItems={isLoadingFreghits} labelProperty={"name"} onItemSelected={item => setSelectedFreightId(item.pk)} />
+                  <SelectInput items={filteredFreights} label={"باربری"} selectedItem={filteredFreights.find(ele => ele.selected)} isLoadingItems={isLoadingFreghits} labelProperty={"name"} onItemSelected={item => setSelectedFreightId(item?.pk || null)} />
                   {freightError && <p className='text-red-500 text-sm'>
                     {freightError}
                   </p>}
@@ -585,7 +533,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
                       <div className="text-[11px] text-slate-500 font-mono">کد: {p.pk} | مدل: {p.technical_model}</div>
                     </div>
                     <div className="font-mono font-black text-sky-700">
-                      {formatPrice(p.price * ((100 - parseInt(p.off)) / 100), storeSettings.currencyUnit)}
+                      {formatPrice(p.price * ((100 - (p.off || 0)) / 100), storeSettings.currencyUnit)}
                     </div>
                   </div>
                 ))}
@@ -615,7 +563,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
                   انتخاب شده: {selectedProduct.title} ({selectedProduct.technical_model})
                 </span>
                 <span className="font-mono text-xs text-slate-600">
-                  قیمت مصوب: {formatPrice(selectedProduct.price * ((100 - parseInt(selectedProduct.off)) / 100), storeSettings.currencyUnit)}
+                  قیمت مصوب: {formatPrice(selectedProduct.price * ((100 - (selectedProduct.off || 0)) / 100), storeSettings.currencyUnit)}
                 </span>
               </div>
 
@@ -635,7 +583,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
                   <label className="font-bold text-slate-700 block mb-1">قیمت توافقی واحد (تومان):</label>
                   <input
                     type="number"
-                    value={itemPriceToman || parseInt(selectedProduct.price * ((100 - selectedProduct.off) / 100))}
+                    value={itemPriceToman || (selectedProduct.price * ((100 - (selectedProduct.off || 0)) / 100))}
                     onChange={(e) => setItemPriceToman(e.target.value ? Number(e.target.value) : '')}
                     className="w-full bg-white p-2 rounded-xl border border-sky-300 font-mono font-bold"
                   />
@@ -684,7 +632,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
               <tbody className="divide-y divide-slate-100">
                 {invoiceItems.length > 0 ? (
                   invoiceItems.map((item, idx) => {
-                    const lineFinal = item.price * item.quantity;
+                    const lineFinal = (item?.price || 0) * (item?.price || 0)
 
 
 
@@ -692,8 +640,8 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
                       <tr key={idx} className="hover:bg-slate-50 transition">
                         <td className="p-2.5 font-mono text-slate-400">{idx + 1}</td>
                         <td className="p-2.5 font-bold text-slate-900">
-                          {item.product.title}
-                          <span className="text-[11px] text-slate-500 font-mono block">کد: {item.sku}</span>
+                          {item.product?.title || "ثبت نشده"}
+                          <span className="text-[11px] text-slate-500 font-mono block">کد: {item.product?.serial_number || "ثبت نشده"}</span>
                         </td>
                         <td className="p-2.5 text-center">
                           <input
@@ -701,21 +649,21 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
                             min={1}
 
                             value={item.quantity}
-                            onChange={(e) => handleUpdateItemQty(item.product?.pk, Number(e.target.value))}
+                            onChange={(e) => handleUpdateItemQty(item.product?.pk || null, Number(e.target.value))}
                             className="w-14 text-center bg-slate-100 border border-slate-300 rounded-lg p-1 font-mono font-bold"
                           />
                         </td>
                         <td className="p-2.5">
                           <input
                             type="number"
-                            value={parseInt(item.price * (1 / ((100 - item.off) / 100)))}
+                            value={((item?.price || 0) * (1 / ((100 - (Number(item?.off) || 0)) / 100)))}
                             step={1000000}
-                            onChange={(e) => handleUpdateItemPrice(item.product?.pk, Number(e.target.value))}
+                            onChange={(e) => handleUpdateItemPrice(item.product?.pk || null, Number(e.target.value))}
                             className="w-28 bg-slate-100 border border-slate-300 rounded-lg p-1 font-mono font-bold dir-ltr text-right"
                           />
                         </td>
                         <td className="p-2.5 font-mono text-amber-600 font-bold">
-                          {`${toPersianDigits(item.off)}٪`}
+                          {`${toPersianDigits(item.off || 0)}٪`}
                         </td>
                         <td className="p-2.5 font-mono font-black text-slate-900">
                           {formatPrice(lineFinal, storeSettings.currencyUnit)}
@@ -783,7 +731,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
                 onClick={() => handleSubmitInvoice()}
                 className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer flex items-center gap-1.5"
               >
-                {isSending ? <Spinner width={15} height={15} borderTopColor={"blue"} borderWidth={1.75}/> : <>
+                {isSending ? <Spinner borderMainColor={"white"} width={15} height={15} borderTopColor={"blue"} borderWidth={1.75} /> : <>
                   <CheckCircle2 className="w-4 h-4" />
                   <span>صدور و ثبت فاکتور</span></>}
               </button>

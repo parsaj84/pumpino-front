@@ -1,20 +1,21 @@
-import { useState, useEffect, ReactElement } from "react";
-import { ReturnRequest, UserData } from "../types";
-import API from "@/api/api";
+import { useState, useEffect, ReactElement, Dispatch, SetStateAction, useContext } from "react";
+import { ReturnRequest, StoreSettings, UserData } from "../types";
 import fetchData from "../utils/fetchData";
-import { s } from "motion/react-client";
+
 import { Inbox, PackageX } from "lucide-react";
 import Skeleton from "react-loading-skeleton";
-import { formatPrice, toPersianDigits } from "../utils/formatters";
+import { formatPrice } from "../utils/formatters";
+import { MainContext } from "../contexts/MainContext";
 
 
 interface CustomerReturnRequestProps {
     user: UserData;
-    setIsAuthModalOpen: <entry>(enty: entry) => void;
-    storeSettings: {}
+    setIsAuthModalOpen: Dispatch<SetStateAction<boolean>>
+    storeSettings: StoreSettings
 }
 export default function CustomerReturnRequests({ user, storeSettings, setIsAuthModalOpen }: CustomerReturnRequestProps) {
-    const orders = []
+    const mainContextValue = useContext(MainContext)
+
     const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([])
     const [isLoadingReturnRequests, setIsLoadingReturnRequests] = useState<boolean>(false)
     const [status, setStatus] = useState<ReturnRequest["status"] | "all">("all")
@@ -28,16 +29,16 @@ export default function CustomerReturnRequests({ user, storeSettings, setIsAuthM
             }
             fetchData("orders/user-return-requests/" +`?${urlSearchParams.toString()}`, ({ data, status }) => {
                 if (status === 200) {
-                    console.log(data)
+
                     setReturnRequests(data)
                 } else {
                     const e = data.error_des || data.detail || "خطا در برقرار ارتباط"
-                    console.log(e)
+                    mainContextValue?.onError(e)
                 }
                 setIsLoadingReturnRequests(false)
-            }, () => setIsLoadingReturnRequests(true))
+            }, () => setIsLoadingReturnRequests(true) , () => mainContextValue?.onError("خطایی رخ داده است"))
         } catch (e) {
-            console.log(e)
+             mainContextValue?.onError("خطایی رخ داده است")
         }
     }, [status])
 
@@ -80,7 +81,13 @@ export default function CustomerReturnRequests({ user, storeSettings, setIsAuthM
                         کنسل شده
                     </span>
                 )
-        }
+            default:
+                return (
+                    <span>
+                        ثبت نشده
+                    </span>
+                )
+            }
     }
 
     const getReasonPersionText = (reasonDBName: string): string => {
@@ -97,7 +104,10 @@ export default function CustomerReturnRequests({ user, storeSettings, setIsAuthM
                 return "انصراف از خرید"
             case "other":
                 return "سایر"
+            default:
+                return "تبت نشده"
         }
+
     }
 
     
@@ -263,7 +273,6 @@ export default function CustomerReturnRequests({ user, storeSettings, setIsAuthM
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {returnRequests.map((returnRequest, idx) => {
-                                            console.log()
                                             return (
                                                 <tr key={idx} className="hover:bg-slate-50">
                                                     <td className="p-2.5 font-mono text-center text-slate-400 font-bold">{idx + 1}</td>
@@ -278,10 +287,10 @@ export default function CustomerReturnRequests({ user, storeSettings, setIsAuthM
                                                         {getStatusBedge(returnRequest.status)}
                                                     </td>
                                                     <td className="p-2.5 font-bold text-center text-slate-800">
-                                                        {formatPrice(returnRequest.order?.price_accepted_by_admin || returnRequest.item?.price * returnRequest.item?.quantity, storeSettings.currencyUnit)}
+                                                        {formatPrice(Number(returnRequest.order?.price_accepted_by_admin || (returnRequest.item?.price || 0) * (returnRequest.item?.quantity || 0)), storeSettings.currencyUnit)}
                                                     </td>
                                                     <td className="p-2.5 text-center font-extrabold text-sky-800 bg-sky-50/50">
-                                                        {returnRequest.return_price_accepted_by_admin ? formatPrice(returnRequest.return_price_accepted_by_admin, storeSettings.currencyUnit) : "در دست بررسی"}
+                                                        {returnRequest.return_price_accepted_by_admin ? formatPrice(Number(returnRequest.return_price_accepted_by_admin), storeSettings.currencyUnit) : "در دست بررسی"}
                                                     </td>
                                                     <td className="p-2.5 font-bold text-center text-slate-800">
                                                         <span className="border-2 border-slate-300 bg-slate-200 text-gray-400 p-1.5 rounded-2xl">

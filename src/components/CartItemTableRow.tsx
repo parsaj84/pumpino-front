@@ -1,13 +1,29 @@
-import { useState } from "react";
+import { Dispatch, SetStateAction, useContext, useState } from "react";
 import { formatPrice } from "../utils/formatters";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import API from "@/api/api";
 import Spinner from "./Spinner";
+import { CartData, CartItem, Product, StoreSettings } from "../types";
+import { MainContext } from "../contexts/MainContext";
+import compileErrorOBJToArray from "../utils/compileErrorsOBJToArray";
 
-export default function CartItemTableRow({ storeSettings, setCartData, product, item, idx }) {
+interface CartItemTableRowProps  {
+    storeSettings : StoreSettings;
+    setCartData : Dispatch<SetStateAction<CartData | null>>;
+    product : Product;
+    item : CartItem;
+    idx : number;
+}
+
+
+export default function CartItemTableRow({ storeSettings, setCartData, product, item, idx } : CartItemTableRowProps) {
+    const mainContext = useContext(MainContext)
+
+
+ 
     const [isPending, setIsPending] = useState(false)
-    const quantity = Math.max(item.quantity, 1)
-    const unitPrice = product.price * ((100 - product.off) / 100);
+    const quantity = Math.max(Number(item.quantity), 1)
+    const unitPrice = product.price * ((100 - (product.off || 0)) / 100);
     const quantityUpdator = async (productId: string, action: "increase" | "decrease") => {
         const productIdString = productId.toString()
         try {
@@ -16,7 +32,7 @@ export default function CartItemTableRow({ storeSettings, setCartData, product, 
             if (status === 200 && data.success) {
 
                 setCartData(prev => ({
-                    post_price: data.post_price, total_items_price: data.cart_total_price, cart_items: [...prev.cart_items].filter(ele => {
+                    post_price: data.post_price, total_items_price: data.cart_total_price, cart_items: [...(prev?.cart_items || [])].filter(ele => {
                         if (ele.product_id === productIdString && data.item_removed) {
                             return false
                         }
@@ -32,12 +48,12 @@ export default function CartItemTableRow({ storeSettings, setCartData, product, 
                     })
                 }))
             } else {
-                const e = data.error_des
-                console.log(e)
+                const e = data.error_des || data.details || "خطایی رخ داده است"
+                mainContext?.onError(typeof e === "object" ? compileErrorOBJToArray(e)?.join(",") : "خطایی رخ داده است")
             }
             setIsPending(false)
         } catch (e) {
-            console.log(e)
+            mainContext?.onError("خطایی رخ داده است!")
             setIsPending(false)
         }
     };
@@ -48,19 +64,19 @@ export default function CartItemTableRow({ storeSettings, setCartData, product, 
             const productIdString = productId.toString()
             const { status, data } = await API.post("cart/remove-cart-item/", { product_id: productIdString })
             if (status === 200 && data.success) {
-                setCartData(prev => ({ post_price: data.post_price, total_items_price: data.cart_total_price, cart_items: [...prev.cart_items].filter(ele => ele.product_id !== productIdString) }))
+                setCartData(prev => ({ post_price: data.post_price, total_items_price: data.cart_total_price, cart_items: [...(prev?.cart_items || [])].filter(ele => ele.product_id !== productIdString) }))
             } else {
-                const e = data.error_des
-                console.log(e)
-            }
+                const e = data.error_des || data.details || "خطای غیرمنتظره رخ داده است"
+                mainContext?.onError(typeof e === "object" ? compileErrorOBJToArray(e)?.join(",") : "خطایی رخ داده است!")
+            }   
             setIsPending(false)
         } catch (e) {
-            console.log(e)
+            mainContext?.onError("خطایی غیر منتظره رخ داده است")
             setIsPending(false)
         }
     }
     return (
-        <tr key={item.product.id} className="hover:bg-slate-50/80">
+        <tr key={item.product.pk || idx} className="hover:bg-slate-50/80">
             <td className="p-3 font-mono font-bold text-slate-400">{idx + 1}</td>
             <td className="p-3 font-mono font-bold text-slate-700">{product?.technical_model}</td>
             <td className="p-3">
@@ -73,7 +89,7 @@ export default function CartItemTableRow({ storeSettings, setCartData, product, 
                 <div className="flex items-center justify-center gap-1.5">
                     <button
                         disabled={isPending}
-                        onClick={() => quantityUpdator(product.pk, "decrease")}
+                        onClick={() => quantityUpdator(product.pk?.toString(), "decrease")}
                         className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 transition cursor-pointer"
                         title="کاهش تعداد"
                     >
@@ -89,7 +105,7 @@ export default function CartItemTableRow({ storeSettings, setCartData, product, 
                     <button
                         disabled={isPending}
 
-                        onClick={() => quantityUpdator(product.pk, "increase")}
+                        onClick={() => quantityUpdator(product.pk?.toString(), "increase")}
                         className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 transition cursor-pointer"
                         title="افزایش تعداد"
                     >
@@ -98,12 +114,12 @@ export default function CartItemTableRow({ storeSettings, setCartData, product, 
                 </div>
             </td>
             <td className="p-3 font-bold text-sky-900">
-                {formatPrice(product.item_total_price, storeSettings.currencyUnit)}
+                {formatPrice(Number(product.item_total_price), storeSettings.currencyUnit)}
             </td>
             <td className="p-3 text-center">
                 <button
                     disabled={isPending}
-                    onClick={() => handleRemoveFromCart(product.pk)}
+                    onClick={() => handleRemoveFromCart(product.pk.toString())}
                     className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                 >
                     <Trash2 className="w-4 h-4" />

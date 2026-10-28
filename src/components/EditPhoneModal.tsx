@@ -1,13 +1,25 @@
 import { ArrowRight, CheckCircle2, KeyRound, Phone, RefreshCcw, ShieldCheck, Smartphone, User, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Dispatch, SetStateAction, SubmitEvent, useContext, useEffect, useState } from "react";
 import Spinner from "./Spinner";
 import { toPersianDigits } from "../utils/formatters";
 import API from "@/api/api";
+import { User as UserType , UserData} from "../types";
+import { MainContext, MainContextValue } from "../contexts/MainContext";
 
-export default function EditPhoneModal({ setIsActive, userData, setUser }) {
+interface EditPhoneModalProps {
+  setIsActive : Dispatch<SetStateAction<boolean>>;
+  userData : UserType;
+  setUser : Dispatch<SetStateAction<UserData>>
+}
+
+export default function EditPhoneModal({ setIsActive, userData, setUser } : EditPhoneModalProps) {
   const [step, setStep] = useState<'newPhoneInput' | 'prevPhonOTP' | "newPhoneOTP">(
     'newPhoneInput'
   );
+
+  const mainContextValue = useContext<MainContextValue>(MainContext)
+
+
 
   const [mobilePhone, setMobilePhone] = useState("");
   const [prevPhoneOtpCode, setPrevPhoneOtpCode] = useState('');
@@ -32,7 +44,7 @@ export default function EditPhoneModal({ setIsActive, userData, setUser }) {
   }, [step, timer]);
 
 
-  async function handleNewPhoneSubmit(e) {
+  async function handleNewPhoneSubmit(e : SubmitEvent) {
     try {
       e.preventDefault()
       const iranianPhoneRegex = /^(\+98|0098|98|0)?9\d{9}$/
@@ -57,7 +69,7 @@ export default function EditPhoneModal({ setIsActive, userData, setUser }) {
     }
 
   }
-  async function handlePrevPhoneOTP(e) {
+  async function handlePrevPhoneOTP(e : SubmitEvent) {
     try {
       e.preventDefault()
       if (!/^\d{5}$/.test(prevPhoneOtpCode)) {
@@ -74,12 +86,12 @@ export default function EditPhoneModal({ setIsActive, userData, setUser }) {
       }
       setIsSending(false)
     } catch (e) {
-      console.log()
+
       setErrors(prev => ({ ...prev, prevPhoneOtp: "خطا غیرمنتطره" }))
       setIsSending(false)
     }
   }
-  async function handleNewPhoneOTP(e) {
+  async function handleNewPhoneOTP(e : SubmitEvent) {
     try {
       e.preventDefault()
       if (!/^\d{5}$/.test(newPhoneOTPCode)) {
@@ -88,10 +100,10 @@ export default function EditPhoneModal({ setIsActive, userData, setUser }) {
         return;
       }
       setIsSending(true)
-      const { data, status } = await API.post("users/edit-phone-new-phone-validation/", { phone: mobilePhone, otp_code: newPhoneOTPCode });
-      console.log(data)
+      const { data, status }  = await API.post("users/edit-phone-new-phone-validation/", { phone: mobilePhone, otp_code: newPhoneOTPCode });
+
       if (status === 200) {
-        setUser(prev => ({ isAuthenticated: prev.isAuthenticated, data: { ...prev.data, phone: mobilePhone } }))
+        setUser((prev : UserData) => ({ isAuthenticated: true, data: { ...prev?.data , phone: mobilePhone } }))
         setIsActive(false)
       } else {
         setErrors(prev => ({ ...prev, newPhoneOTP: data?.error_des || data.detail || "خطای غیرمنتظره" }))
@@ -104,7 +116,9 @@ export default function EditPhoneModal({ setIsActive, userData, setUser }) {
   }
   async function handleResendCode(phone: string) {
     try {
-      console.log(phone)
+      if (!phone) {
+        mainContextValue?.onError("لطفا شماره تلفن را وارد کنید!")
+      }
       setIsSendingOtpCode(true)
       const { data, status } = await API.post("users/send-otp-code/", { phone: phone })
       if (status === 200 && data.success) {
@@ -247,7 +261,7 @@ export default function EditPhoneModal({ setIsActive, userData, setUser }) {
               ) : (
                 <button
                   type="button"
-                  onClick={() => handleResendCode(userData?.phone)}
+                  onClick={() => handleResendCode(userData?.phone || "")}
                   className="text-emerald-700 hover:text-emerald-900 font-bold flex justify-center items-center gap-1 cursor-pointer"
                 >
                   {isResendingOtpCode ? <div className='w-33 flex items-center justify-center'>

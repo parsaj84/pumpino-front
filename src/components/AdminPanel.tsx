@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useDeferredValue, useEffectEvent, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useDeferredValue, useEffectEvent, useMemo, Dispatch, SetStateAction, useContext } from 'react';
 import {
   Lock,
   Save,
@@ -11,61 +11,33 @@ import {
   Store,
   CheckCircle2,
   AlertCircle,
-  X,
-  FileSpreadsheet,
-  Calendar,
   Layers,
   Wrench,
   Search,
   Package,
-  Truck,
-  Printer,
   FileText,
-  Clock,
   Sparkles,
-  ChevronDown,
-  ChevronUp,
-  PackageCheck,
-
   CreditCard,
   Receipt,
-  Images,
   CircleDollarSign,
   AlertTriangle,
   FilePlus,
-  Smartphone,
-  MessageSquare,
   Download,
-  Database,
-  HardDrive,
   Zap,
   ArrowRight,
-  ArrowLeft,
-  Users,
-  UserCheck,
   ShieldCheck,
-  ShieldAlert,
-  Eye,
-  EyeOff,
-  KeyRound,
-  Motorbike,
-  HandHelping,
-  ChevronLeft,
   PackageX
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { AccountingModule } from './AccountingModule';
 import { LowStockAlerts } from './LowStockAlerts';
 import { CreateManualInvoiceModal } from './CreateManualInvoiceModal';
-import { OrderTicketChat } from './OrderTicketChat';
 import { SmsSettingsPanel } from './SmsSettingsPanel';
 import { PrinterSettingsPanel } from './PrinterSettingsPanel';
 import { PaymentSettingsPanel } from './PaymentSettingsPanel';
 import { CustomerTransactionsPanel } from './CustomerTransactionsPanel';
-import { Product, Category, Brand, StoreSettings, PriceUpdateLog, CategoryId, CustomerOrder, OrderStatus, SeoSettings, SeoFaqItem, SeoCardItem, OrderMessage, BankAccountItem, AdminUser, AdminPermission } from '../types';
-import { saveCategories, saveBrands, saveOnlineData, fetchOnlineData, saveCustomerOrders } from '../utils/storage';
+import { Product, Category, Brand, StoreSettings, PriceUpdateLog, CategoryId, CustomerOrder, OrderStatus, SeoSettings, SeoFaqItem, SeoCardItem, OrderMessage, BankAccountItem, AdminUser, AdminPermission, AdminSubTab, User, UserData } from '../types';
 import { INITIAL_SEO_SETTINGS } from '../data/initialData';
-import { formatPrice, toPersianDigits } from '../utils/formatters';
+import { toPersianDigits } from '../utils/formatters';
 import API from '@/api/api';
 import Spinner from './Spinner';
 import fetchData from '../utils/fetchData';
@@ -80,24 +52,23 @@ import BulkPercent from './BulkPercent';
 import ExcelProductImport from './ExcelProductImport';
 import AdminReturnRequest from './AdminReturnRequest';
 import AdminStaffUsersManage from './AdminStaffUsersManage';
-import { title } from 'process';
+import { MainContext } from '../contexts/MainContext';
+
 
 interface AdminPanelProps {
-  products: Product[];
-  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
-  categories: Category[];
-  setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
+  products: Product[] | null;
+  setProducts: React.Dispatch<React.SetStateAction<Product[] | null>>;
+  categories: Category[] | null;
+  setCategories: React.Dispatch<React.SetStateAction<Category[] | null>>;
   brands: Brand[];
   setBrands: React.Dispatch<React.SetStateAction<Brand[]>>;
   storeSettings: StoreSettings;
-  setStoreSettings: React.Dispatch<React.SetStateAction<StoreSettings>>;
-  priceLogs: PriceUpdateLog[];
-  setPriceLogs: React.Dispatch<React.SetStateAction<PriceUpdateLog[]>>;
-  orders: CustomerOrder[];
-  setOrders: React.Dispatch<React.SetStateAction<CustomerOrder[]>>;
   isAdminLoggedIn: boolean;
-  setIsAdminLoggedIn: (val: boolean) => void;
   onOpenPrintInvoiceForOrder: (order: CustomerOrder) => void;
+  setUser: Dispatch<SetStateAction<UserData>>;
+  user: UserData;
+  openPhoneAuthModal: () => void;
+  onClose: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -108,20 +79,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   brands,
   setBrands,
   storeSettings,
-  setStoreSettings,
-  priceLogs,
-  setPriceLogs,
-
   isAdminLoggedIn,
-  setIsAdminLoggedIn,
   onOpenPrintInvoiceForOrder,
   openPhoneAuthModal,
   setUser,
-  user
+  user,
+
 }) => {
 
 
-
+  const mainContextValue = useContext(MainContext)
 
 
   // const [orderAccordionHeight, setOrderAccordionHeight] = useState()
@@ -130,11 +97,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggiingIn] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [orderSearchQuery, setOrderSearchQuery] = useState("")
   const deferedSearchQuery = useDeferredValue(orderSearchQuery)
   const [isFetchingOrders, setIsFetchingOrders] = useState(true)
-  const [orderFilterPayload, setOrderFilterPayload] = useState({})
+  const [orderFilterPayload, setOrderFilterPayload] = useState<{
+    search?: string;
+    order_status?: string
+  }>({})
   const [orderPaginationState, setOrderPaginationState] = useState({
     pageNums: [],
     prevPage: null,
@@ -151,17 +121,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return () => clearTimeout(timeoutId)
   }, [deferedSearchQuery])
 
-  // Local draft state for quick table price edits
-  const [draftPrices, setDraftPrices] = useState<{ [productId: string]: { price: number; stock: Product['stockStatus']; qty: number } }>(() => {
-    const initial: any = {};
-    products?.forEach(p => {
-      initial[p.id] = { price: p.priceToman, stock: p.stockStatus, qty: p.quantityInStock };
-    });
-    return initial;
-  });
 
-  const [activeAdminSubTab, setActiveAdminSubTab] = useState<'main_dashboard' | 'orders_manage' | 'accounting' | 'customer_transactions' | 'gateways' | 'low_stock' | 'quick_prices' | 'add_product' | 'bulk_percent' | 'excel_import' | 'settings' | 'seo' | 'sms' | 'printers' | 'categories_manage' | 'admin_users' | "return_requests">('main_dashboard');
-  const [adminSearchQuery, setAdminSearchQuery] = useState('');
+  const [activeAdminSubTab, setActiveAdminSubTab] = useState<AdminSubTab>('main_dashboard');
 
 
   //effects
@@ -177,19 +138,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           })
         } else {
           const e = data.error_des || data.detail || "خطا"
-          console.log(e)
+          mainContextValue?.onError(e)
         }
         setIsFetchingOrders(false)
-      }, () => setIsFetchingOrders(true));
+      }, () => setIsFetchingOrders(true), () => mainContextValue?.onError("خطای غیرمنتظره"));
     }
   }, [activeAdminSubTab])
 
   useEffect(() => {
     const searchParams = new URLSearchParams(orderFilterPayload)
-    console.log(searchParams.toString())
     fetchData(`orders/orders-list/?${searchParams.toString()}`, ({ data, status }) => {
       if (status === 200) {
-        console.log(data)
         setOrders(data.orders)
         setOrderPaginationState({
           prevPage: data.prev_page,
@@ -198,10 +157,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         })
       } else {
         const e = data.error_des || data.detail || "خطا"
-        console.log(e)
+        mainContextValue?.onError(e)
       }
       setIsFetchingOrders(false)
-    }, () => setIsFetchingOrders(true))
+    }, () => setIsFetchingOrders(true), () => mainContextValue?.onError("خطایی غیرمنتظه رخ داد"))
   }, [orderFilterPayload])
 
   // Admin Multi-user & Role Permissions State
@@ -242,12 +201,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return null;
   });
 
-  const saveAdminUsers = (users: AdminUser[]) => {
-    setAdminUsers(users);
-    try {
-      localStorage.setItem('pumpino_admin_accounts', JSON.stringify(users));
-    } catch (e) { }
-  };
+
 
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<Partial<AdminUser> | null>(null);
@@ -313,16 +267,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [quickBrandCountry, setQuickBrandCountry] = useState('ایران');
 
 
+  const handleSaveSettingsSubmit = () => {
 
+  }
 
-  const [deletingCategoryPK, setDeletingCategoryPK] = useState(null)
+  const [deletingCategoryPK, setDeletingCategoryPK] = useState<number | string | null>(null)
   const handleDeleteCategory = async (catId: string) => {
     try {
       if (window.confirm('آیا از حذف این دسته‌بندی اطمینان دارید؟')) {
         setDeletingCategoryPK(catId)
         const { data, status } = await API.delete("products/admih-category-delete/" + catId + "/")
         if (status === 200) {
-          setCategories(prev => [...prev].filter(cat => cat.pk !== catId))
+          setCategories(prev => [...(prev || [])].filter(cat => cat.pk !== catId))
         } else {
           const e = data.error_des || data.detail || "خطا"
         }
@@ -331,14 +287,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         setTimeout(() => setSuccessMsg(''), 3000);
       }
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطای غیرمنتظه رخ داد")
       setDeletingCategoryPK(null)
-
     }
   };
 
-
-  const [deletingBrandPK, setDeletingBrandPK] = useState(null)
+  const [deletingBrandPK, setDeletingBrandPK] = useState<string | null | number>(null)
   const handleDeleteBrand = async (brandId: string) => {
     try {
       if (window.confirm('آیا از حذف این برند اطمینان دارید؟')) {
@@ -350,16 +304,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           setTimeout(() => setSuccessMsg(''), 3000);
         } else {
           const e = data.error_des || data.detail || "خطا غیر منتظره"
-          console.log(e)
+          mainContextValue?.onError(e)
         }
         setDeletingBrandPK(null)
       }
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطایی غیر منتظره رخ داده است")
       setDeletingBrandPK(null)
-
     }
-  };
+  }
 
   const [isSyncingOnline, setIsSyncingOnline] = useState(false);
 
@@ -515,92 +468,21 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
     reader.readAsText(file);
   };
 
-  const handleAdminSendMessage = (orderId: string, messageText: string) => {
-    const nowShamsi = new Date().toLocaleDateString('fa-IR') + ' - ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
-    const newMsg: OrderMessage = {
-      id: `msg-${Date.now()}`,
-      sender: 'admin',
-      senderName: 'مدیریت پشتیبانی',
-      message: messageText,
-      createdAt: nowShamsi
-    };
 
-    setOrders(prev => prev.map(o => {
-      if (o.id === orderId) {
-        return {
-          ...o,
-          messages: [...(o.messages || []), newMsg],
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return o;
-    }));
-  };
 
 
 
 
 
   // Modal editing product
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null | {}>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
-  // Persistent Product Image Gallery Archive State
-  const [galleryImages, setGalleryImages] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('pumpino_product_gallery');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (err) { }
-    // Default initial images extracted from catalog
-    const catalogImages = products.map(p => p.imageUrl).filter((url): url is string => Boolean(url) && url.length > 5);
-    return Array.from(new Set(catalogImages));
-  });
 
-  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
 
-  const saveGalleryImages = (imgs: string[]) => {
-    setGalleryImages(imgs);
-    try {
-      localStorage.setItem('pumpino_product_gallery', JSON.stringify(imgs));
-    } catch (e) { }
-  };
 
-  const handleUploadImageToGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      alert('حجم عکس انتخاب شده بیش از ۱۰ مگابایت است. لطفاً عکس با حجم کمتر انتخاب کنید.');
-      return;
-    }
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (result) {
-        const updated = [result, ...galleryImages.filter(img => img !== result)];
-        saveGalleryImages(updated);
-
-        if (editingProduct) {
-          setEditingProduct({ ...editingProduct, imageUrl: result });
-        }
-        setSuccessMsg('تصویر با موفقیت آپلود شد و در گالری آرشیو گردید.');
-        setTimeout(() => setSuccessMsg(''), 3000);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleDeleteFromGallery = (imgUrl: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('آیا از حذف این تصویر از گالری آرشیو مطمئن هستید؟')) {
-      const updated = galleryImages.filter(img => img !== imgUrl);
-      saveGalleryImages(updated);
-    }
-  };
 
   // Manual Invoice Creation Modal State
   const [isManualInvoiceModalOpen, setIsManualInvoiceModalOpen] = useState(false);
@@ -839,7 +721,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
       }
       setIsLoggiingIn(false)
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خظایی رخ داد")
       setIsLoggiingIn(false)
     }
   }
@@ -854,101 +736,22 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
       localStorage.removeItem("accessToken")
       const { status } = await API.post("users/logout/")
       if (status === 200) {
-        setUser({ isAuthenticated: false, data: {} })
+        setUser({ isAuthenticated: false, data: null })
       } else {
         const e = "خطا"
-        console.log(e)
+        mainContextValue?.onError(e)
       }
       setIsLoggingOut(false)
-
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطایی رخ داد!")
       setIsLoggingOut(false)
 
     }
   };
 
 
-  const handleApplyBulkPercent = (isIncrease: boolean) => {
-    if (bulkPercentVal <= 0) return;
 
-    const multiplier = isIncrease ? (1 + bulkPercentVal / 100) : (1 - bulkPercentVal / 100);
 
-    const updated = products.map(p => {
-      if (bulkBrandTarget === 'all' || p.brandId === bulkBrandTarget) {
-        const newPrice = Math.round(p.priceToman * multiplier / 1000) * 1000;
-        return {
-          ...p,
-          priceToman: newPrice,
-          oldPriceToman: p.priceToman,
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return p;
-    });
-
-    setProducts(updated);
-
-    // Update draft prices map
-    const newDrafts: any = {};
-    updated.forEach(p => {
-      newDrafts[p.id] = { price: p.priceToman, stock: p.stockStatus, qty: p.quantityInStock };
-    });
-    setDraftPrices(newDrafts);
-
-    const actionText = isIncrease ? 'افزایش' : 'کاهش';
-    setSuccessMsg(`اعمال تغییر ${toPersianDigits(bulkPercentVal)}٪ ${actionText} قیمت روی ${updated.length} کالا با موفقیت انجام شد.`);
-    setTimeout(() => setSuccessMsg(''), 4000);
-  };
-
-  // Excel Upload Import handler
-  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data: any[] = XLSX.utils.sheet_to_json(ws);
-
-        if (data && data.length > 0) {
-          // Import logic: update existing by SKU or add new
-          let updatedCount = 0;
-          let addedCount = 0;
-
-          const currentProducts = [...products];
-
-          data.forEach(row => {
-            const sku = row['کد کالا (SKU)'] || row['کد کالا'] || row['SKU'];
-            const price = parseFloat(row['قیمت (تومان)'] || row['قیمت'] || row['price']);
-
-            if (sku && !isNaN(price)) {
-              const existingIdx = currentProducts.findIndex(p => p.sku === sku);
-              if (existingIdx >= 0) {
-                currentProducts[existingIdx] = {
-                  ...currentProducts[existingIdx],
-                  priceToman: price,
-                  updatedAt: new Date().toISOString()
-                };
-                updatedCount++;
-              }
-            }
-          });
-
-          setProducts(currentProducts);
-          setSuccessMsg(`بارگذاری اکسل انجام شد: ${toPersianDigits(updatedCount)} کالا بروزرسانی گردید.`);
-          setTimeout(() => setSuccessMsg(''), 4000);
-        }
-      } catch (err) {
-        alert('خطا در خواندن فایل اکسل. لطفاً از ساختار استاندارد اکسل استفاده کنید.');
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
 
   const handleAddNewProductModal = () => {
 
@@ -956,49 +759,11 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
     setIsProductModalOpen(true);
   };
 
-  const handleSaveProductForm = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProduct) return;
 
-    const exists = products.some(p => p.id === editingProduct.id);
-    if (exists) {
-      setProducts(prev => prev.map(p => p.id === editingProduct.id ? editingProduct : p));
-    } else {
-      setProducts(prev => [editingProduct, ...prev]);
-    }
-
-    setIsProductModalOpen(false);
-    setEditingProduct(null);
-    setSuccessMsg('محصول با موفقیت ذخیره شد.');
-    setTimeout(() => setSuccessMsg(''), 3000);
-  };
-
-  const handleDeleteProduct = (productId: string) => {
-    if (window.confirm('آیا از حذف این محصول اطمینان دارید؟')) {
-      setProducts(prev => prev.filter(p => p.id !== productId));
-      setSuccessMsg('محصول با موفقیت حذف شد.');
-      setTimeout(() => setSuccessMsg(''), 3000);
-    }
-  };
 
   const pendingOrdersCount = orders?.filter(o => o.status === 'pending').length;
 
-  const handleUpdateOrderItemQuantity = (orderId: string, itemId: number, newQty: number) => {
 
-    setOrders(prev => [...prev].map(order => {
-      if (order.pk !== orderId) {
-        return order
-      }
-      order.items = [...order.items].map(item => {
-        if (item.pk !== itemId) {
-          return item
-        }
-        item.quantity_accepted_by_admin = newQty
-        return item
-      })
-      return order
-    }))
-  };
 
 
 
@@ -1119,15 +884,15 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
       //   Icon: Printer,
       //   bgClass: 'bg-gradient-to-br from-blue-600 via-blue-700 to-sky-900 text-white border-blue-400 shadow-blue-900/20',
       // },
-       {
+      {
         id: 'admin_users' as const,
         title: "مدیریت ادمین ها",
         Icon: ShieldCheck,
         bgClass: 'bg-gradient-to-br from-purple-600 via-indigo-700 to-purple-900 text-white border-purple-300 shadow-purple-900/20',
       },
     ].filter(bedge => {
-      const isSuperUserAllowed = bedge.id === "admin_users"  || bedge.id === "accounting"
-      if (isSuperUserAllowed && !user.data.is_superuser) {
+      const isSuperUserAllowed = bedge.id === "admin_users" || bedge.id === "accounting"
+      if (isSuperUserAllowed && !user.data?.is_superuser) {
         return false
       }
       return true
@@ -1137,37 +902,8 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
 
 
 
-  const handleUpdateOrderItemPrice = (orderId: string, itemId: number, newPrice: number) => {
 
-    setOrders(prev => [...prev].map(order => {
-      if (order.pk !== orderId) {
-        return order
-      }
-      order.items = [...order.items].map(item => {
-        if (item.pk !== itemId) {
-          return item
-        }
-        item.price_accepted_by_admin = newPrice
-        return item
-      })
-      return order
-    }))
-  }
-  const handleIssueInvoiceAndApprove = (order: CustomerOrder) => {
-    const nowShamsi = new Date().toLocaleDateString('fa-IR');
-    const updated: CustomerOrder = {
-      ...order,
-      status: 'approved',
-      statusTitle: 'تایید شده و فاکتور صادر گردید',
-      isInvoiceIssued: true,
-      invoiceIssuedDate: nowShamsi,
-      updatedAt: new Date().toISOString()
-    };
 
-    setOrders(prev => prev.map(o => o.id === order.id ? updated : o));
-    setSuccessMsg(`فاکتور خرید رسمی برای سفارش ${order.orderNumber} با موفقیت صادر گردید.`);
-    setTimeout(() => setSuccessMsg(''), 4000);
-  };
 
 
 
@@ -1234,13 +970,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
     );
   }
 
-  // Filter products for admin table
-  const filteredProducts = products?.filter(p => {
-    const q = adminSearchQuery.toLowerCase();
-    const matchesSearch = p.title?.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.model.toLowerCase().includes(q);
-    const matchesBrand = selectedBrandFilter === 'all' || p.brandId === selectedBrandFilter;
-    return matchesSearch && matchesBrand;
-  });
+
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -1573,19 +1303,16 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
       {activeAdminSubTab === 'low_stock' && (
         <LowStockAlerts
 
-          categories={categories}
+
           brands={brands}
           storeSettings={storeSettings}
-          onEditProductModal={(product) => {
-            setEditingProduct(product);
-            setIsProductModalOpen(true);
-          }}
+
         />
       )}
 
       {/* Sub Tab 1: Quick Prices Table */}
       {activeAdminSubTab === 'quick_prices' && (
-        <QuickAdminPriceChange setIsQuickBrandModalOpen={setIsQuickBrandModalOpen} setIsQuickCategoryModalOpen={setIsQuickCategoryModalOpen} setIsProductModalOpen={setIsProductModalOpen} storeSettings={storeSettings} brands={brands} categories={categories} setEditingProduct={setEditingProduct} />
+        <QuickAdminPriceChange setIsQuickBrandModalOpen={setIsQuickBrandModalOpen} setIsQuickCategoryModalOpen={setIsQuickCategoryModalOpen} storeSettings={storeSettings} brands={brands} categories={categories} />
       )}
 
       {/* Sub Tab 2: Bulk Percentage Adjuster */}
@@ -2481,7 +2208,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2.5">
-                            <div className={`p-2 rounded-xl ${cat.isSparePart ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                            <div className={`p-2 rounded-xl  'bg-indigo-100 text-indigo-800`}>
                               <Package className="w-4 h-4" />
                             </div>
                             <div>
@@ -2526,10 +2253,10 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
 
                 <div className="space-y-2.5">
                   {brands.map((b) => {
-                    const count = products.filter(p => {
-                      console.log(p.brand?.pk, b.pk)
+                    const count = products?.filter(p => {
+
                       return p.brand?.pk.toString() === b.pk.toString()
-                    }).length;
+                    }).length || 0;
                     return (
                       <div
                         key={b.pk}

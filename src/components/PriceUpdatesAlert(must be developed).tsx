@@ -2,16 +2,11 @@ import React, { useState } from 'react';
 import { 
   BellRing, 
   TrendingDown, 
-  TrendingUp, 
   Clock, 
-  ChevronRight, 
-  ChevronLeft, 
   X, 
-  Tag, 
   ShoppingBag, 
   Eye, 
   Sparkles,
-  Layers
 } from 'lucide-react';
 import { Product, PriceUpdateLog, StoreSettings } from '../types';
 import { formatPrice, toPersianDigits } from '../utils/formatters';

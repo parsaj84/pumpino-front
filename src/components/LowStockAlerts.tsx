@@ -1,47 +1,33 @@
-import React, { useDeferredValue, useEffect, useState } from 'react';
+import React, { useContext, useDeferredValue, useEffect, useState } from 'react';
 import {
   AlertTriangle,
   PackageX,
-  PackageCheck,
-  RefreshCw,
   Save,
-  Plus,
   FileSpreadsheet,
   Search,
-  Filter,
-  Edit3,
   CheckCircle2,
-  ArrowUpRight,
-  ShieldAlert,
   Boxes,
-  Layers,
   Trash2
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { Product, Category, Brand, StoreSettings } from '../types';
+import { Product, Brand, StoreSettings } from '../types';
 import { formatPrice, toPersianDigits } from '../utils/formatters';
 import fetchData from '../utils/fetchData';
 import PaginationContainer from './Pagintation';
 import API from '@/api/api';
 import Spinner from './Spinner';
 import Skeleton from 'react-loading-skeleton';
+import { MainContext } from '../contexts/MainContext';
 
 interface LowStockAlertsProps {
-  products: Product[];
-  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
-  categories: Category[];
   brands: Brand[];
   storeSettings: StoreSettings;
-  onEditProductModal: (product: Product) => void;
 }
 
 export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
-
-  categories,
   brands,
   storeSettings,
-  onEditProductModal
 }) => {
+  const mainContextValue = useContext(MainContext)
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery)
   const [filterState, setFilterState] = useState({
@@ -52,19 +38,19 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
     page: 1
   });
 
-  const handleDeleteProduct = async (product) => {
+  const handleDeleteProduct = async (product: Product) => {
     try {
       setDeletingProductPK(product.pk)
       const { data, status } = await API.delete("products/product-delete/" + product.pk?.toString() + "/")
       if (status === 200) {
         setProducts(prev => [...prev].filter(p => p.pk !== product.pk))
       } else {
-        const e = data.error_des || data.detail || "error"
-        console.log(e)
+        mainContextValue?.onError("خطا در پاک کردن کالا")
       }
       setDeletingProductPK(null)
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطا در پاک کردن کالا")
+
       setDeletingProductPK(null)
 
     }
@@ -76,11 +62,11 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
     searchParams.append("inventory_status", filterState.status)
     searchParams.append("inventory_threshold", filterState.threshold.toString())
     searchParams.append("searchQuery", filterState.searchQuery)
-    searchParams.append("page", filterState.page)
+    searchParams.append("page", filterState.page.toString())
     return "?" + searchParams.toString()
   }
 
-  const [products, setProducts] = useState([])
+  const [products, setProducts] = useState<Product[]>([])
   const [paginationData, setPaginationData] = useState({
     prevPage: null,
     nextPage: 2,
@@ -108,35 +94,27 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
           numPages: response.data.num_pages
         })
       } else {
-        const e = "خطا"
-        console.log(e)
+        mainContextValue?.onError("خطا در دریافت اطلاعات")
+
       }
       setIsLoadingProducts(false)
-    }, () => setIsLoadingProducts(true))
+    }, () => setIsLoadingProducts(true), () => {
+      mainContextValue?.onError("خطا در دریافت داده ها")
+    })
   }, [filterState])
 
   useEffect(() => {
     fetchData("products/out-of-stock-products-count/", (response) => {
       setIsFetchingInventoryData(false)
       setInventoryData(response.data.count)
-    }, () => setIsFetchingInventoryData(true))
+    }, () => setIsFetchingInventoryData(true), () => {
+      mainContextValue?.onError("خطا در دریافت داده ها")
+    })
   }, [])
 
-  const [threshold, setThreshold] = useState<number>(5);
+  const threshold = 5
 
-  const [brandFilter, setBrandFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'out_of_stock' | 'low_stock' | 'below_threshold'>('all');
-
-  const [deletingProductPK, setDeletingProductPK] = useState(null)
-
-  // Local draft stock quantities for fast updating
-  const [draftStock, setDraftStock] = useState<{ [productId: string]: { qty: number; status: Product['stockStatus'] } }>(() => {
-    const initial: any = {};
-    products.forEach(p => {
-      initial[p.id] = { qty: p.quantityInStock ?? 0, status: p.stockStatus };
-    });
-    return initial;
-  });
+  const [deletingProductPK, setDeletingProductPK] = useState<string | number | null>(null)
 
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -144,7 +122,7 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
 
 
 
-  const handleQtyChange = (productId: string, newQty: number) => {
+  const handleQtyChange = (productId: string | number, newQty: number) => {
     const validQty = Math.max(0, newQty);
     setProducts(prev => [...prev].map(ele => {
       if (ele.pk === productId) {
@@ -154,15 +132,10 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
     }))
   };
 
-  const handleStatusChange = (productId: string, newStatus: Product['stockStatus']) => {
-    setDraftStock(prev => ({
-      ...prev,
-      [productId]: { ...prev[productId], status: newStatus }
-    }));
-  };
 
 
-  const [editingProductPk, setEditingProductPK] = useState(null)
+
+  const [editingProductPk, setEditingProductPK] = useState<string | null | number>(null)
 
 
   const handleSaveStockForItem = async (product: Product) => {
@@ -175,33 +148,18 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
         setTimeout(() => setSuccessMsg(''), 3000);
       } else {
         const e = data.error_des || data.detail || "خطا"
-        console.log(e)
+        mainContextValue?.onError("خطایی در فرایند اپدیت کردن محصول!")
       }
       setEditingProductPK(null)
 
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطایی رخ داده است!")
       setEditingProductPK(null)
     }
 
   };
 
-  const handleSaveAllStockChanges = () => {
-    setProducts(prev => prev.map(p => {
-      const draft = draftStock[p.id];
-      if (draft) {
-        return {
-          ...p,
-          quantityInStock: draft.qty,
-          stockStatus: draft.status
-        };
-      }
-      return p;
-    }));
 
-    setSuccessMsg('تغییرات کلی موجودی تمامی کالاهای کم‌انبار با موفقیت ذخیره شد.');
-    setTimeout(() => setSuccessMsg(''), 3500);
-  };
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false)
 
   // Export low stock purchase order to Excel
@@ -209,7 +167,7 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
     try {
       if (isLoadingProducts || !products?.length) {
         const e = "محصولی برای خروچی گرفتن وجود ندارد"
-        console.log(e)
+        mainContextValue?.onError(e)
         return;
       }
       setIsGeneratingExcel(true)
@@ -225,11 +183,12 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
         linkElement.remove()
         setIsGeneratingExcel(false)
       } else {
-        const e = "خطا"
-        console.log(e)
+
+        mainContextValue?.onError("خطا در ساخت اکسل")
       }
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطا در ساخت اکسل")
+
     }
   };
 
@@ -433,7 +392,7 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
                       </td>
 
                       <td className="p-3 font-mono font-bold text-slate-800">
-                        {formatPrice(product.price * ((100 - product.off) / 100), storeSettings.currencyUnit)}
+                        {formatPrice(product.price * ((100 - (Number(product.off) || 0)) / 100), storeSettings.currencyUnit)}
                       </td>
 
                       <td className="p-3">
@@ -495,7 +454,7 @@ export const LowStockAlerts: React.FC<LowStockAlertsProps> = ({
                           </button>
 
                           <button
-                            disabled={deletingProductPK && deletingProductPK === product.pk}
+                            disabled={(deletingProductPK && deletingProductPK === product.pk) ? true : false}
                             onClick={() => handleDeleteProduct(product)}
                             className="p-1.5 text-slate-600 hover:bg-slate-100 hover:text-red-500 rounded-lg cursor-pointer"
                             title="ویرایش کامل کالا"

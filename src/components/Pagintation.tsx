@@ -1,22 +1,26 @@
-import { memo, useCallback, useMemo } from "react"
+import { Dispatch, memo, SetStateAction, useCallback } from "react"
+interface PaginationContainerProps {
+    productsCount ?:number | string;
+    setFilterState : Dispatch<SetStateAction<Record<string , string | number | null>>>
+    pageNums : (string | number | null )[],
+    prevPage : string | number | null,
+    nextPage : string |number | null
+}
 
-export default function PaginationContainer({ productsCount ,setFilterState, pageNums, prevPage, nextPage }) {
 
-    if (productsCount <= 0) {
-        return null
-    }
+export default function PaginationContainer({ productsCount ,setFilterState, pageNums, prevPage, nextPage } : PaginationContainerProps) {
 
-    const getCurrentPageNum = useCallback((nextPage, prevPage) => {
+    const getCurrentPageNum = useCallback((nextPage : string | number | null, prevPage : string | number | null) => {
         if (!prevPage)
             return 1
         if (!nextPage)
-            return pageNums.length
-        return (prevPage + nextPage) / 2
+            return pageNums?.length
+        return (Number(prevPage) + Number(nextPage)) / 2
     }, [pageNums]);
 
     const currentPage = getCurrentPageNum(nextPage, prevPage)
 
-    const PageItem = memo(({ page, isActive }) => (
+    const PageItem = memo(({ page, isActive } : {page : string | number | null, isActive : boolean}) => (
         <button
             onClick={() => {
                 if (!(page === currentPage) && isActive) {
@@ -33,7 +37,7 @@ export default function PaginationContainer({ productsCount ,setFilterState, pag
     ))
 
     const GeneratePageButtons = useCallback(
-        (currentPage) => {
+        (currentPage : string | number) => {
             return (
                 <>
                     {prevPage && (
@@ -45,17 +49,17 @@ export default function PaginationContainer({ productsCount ,setFilterState, pag
                             </span>
                         </div>
                     )}
-                    {(prevPage && currentPage > 3) && <PageItem page={1} isActive={true} />}
-                    {(prevPage && currentPage > 4) && <PageItem isActive={false} page={"..."} />}
+                    {(prevPage && Number(currentPage) > 3) && <PageItem page={1} isActive={true} />}
+                    {(prevPage && Number(currentPage) > 4) && <PageItem isActive={false} page={"..."} />}
                     {pageNums?.map(pageNum => {
-                        if ((pageNum > (currentPage - 3)) && (pageNum < (currentPage + 3)))
+                        if ((Number(pageNum) > ((Number(currentPage) - 3))) && (Number(pageNum) < Number(currentPage) + 3))
                             return <PageItem page={pageNum} isActive={true} />
                     })}
-                    {(nextPage && currentPage < (pageNums?.length - 3)) && (<>
+                    {(nextPage && Number(currentPage) < (pageNums?.length as number - 3)) && (<>
                     <PageItem page={"..."} isActive={false} />
-                    <PageItem page={pageNums?.length} isActive={true} />
+                    <PageItem page={pageNums?.length as number} isActive={true} />
                     </>)}
-                    {(nextPage && currentPage >= (pageNums?.length - 3) && currentPage < (pageNums?.length - 2)) && <PageItem page={pageNums?.length} isActive={true} />}
+                    {(nextPage && Number(currentPage) >= ( (pageNums?.length as number - 3)) && Number(currentPage) < (pageNums?.length as number - 2)) && <PageItem page={pageNums?.length} isActive={true} />}
                     {nextPage && (
                         <div onClick={() => setFilterState(prev => ({ ...prev, page: nextPage }))} className="pagintaion-btn">
                             <span>
@@ -76,7 +80,7 @@ export default function PaginationContainer({ productsCount ,setFilterState, pag
     return (
         <div className="flex justify-center items-center">
 
-            {GeneratePageButtons(currentPage)}
+            {GeneratePageButtons(currentPage  as number)}
 
         </div>
     )

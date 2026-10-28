@@ -1,22 +1,28 @@
-import React, { useState } from 'react';
+import React, { Dispatch, SetStateAction, useContext, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ShoppingBag,
-  Share2,
   Eye,
-  CheckCircle,
-  Zap,
-  Layers,
-  ShieldCheck,
-  Droplets,
   Tag,
   MessageSquare,
   X
 } from 'lucide-react';
-import { formatPrice, getStockBadge, toPersianDigits, generateWhatsAppShareUrl } from '../utils/formatters';
-import { Product } from '../types';
+import { formatPrice, getStockBadge, generateWhatsAppShareUrl } from '../utils/formatters';
+import { CartData, Product, StoreSettings } from '../types';
 import Spinner from './Spinner';
 import API from '@/api/api';
+import { MainContext } from '../contexts/MainContext';
+
+interface ProductCardProps {
+  product: Product;
+  brandName?: string;
+  categoryName?: string;
+  storeSettings: StoreSettings;
+  onViewDetails: (p: Product) => void;
+  isInQuote: boolean;
+  setCartData: Dispatch<SetStateAction<CartData | null>>;
+
+}
 
 
 export const ProductCard = ({
@@ -27,9 +33,9 @@ export const ProductCard = ({
   onViewDetails,
   isInQuote,
   setCartData,
-  cartData
-}) => {
 
+}: ProductCardProps) => {
+  const mainContextValue = useContext(MainContext)
   const [isTogglingCartStatus, setIsTogglingCartStatus] = useState(false)
 
   async function handleAddToQuote() {
@@ -39,12 +45,11 @@ export const ProductCard = ({
       if (status === 200) {
         setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...prev.cart_items, data.cart_item] }))
       } else {
-        const e = data.error_des
-        console.log(e)
+        mainContextValue?.onError("خطا در هنگام اضافه کردن محصول به سبد خرید")
       }
       setIsTogglingCartStatus(false)
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطا در هنگام اضافه کردن محصول به سبد خرید")
       setIsTogglingCartStatus(false)
     }
   }
@@ -55,11 +60,13 @@ export const ProductCard = ({
       if (status === 200 && data.success) {
         setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...prev.cart_items].filter(ele => !(ele.product_id === product.pk.toString())) }))
       } else {
+        mainContextValue?.onError("خطا در هنگام حذف کردن محصول به سبد خرید")
 
       }
       setIsTogglingCartStatus(false)
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطا در هنگام حذف کردن محصول به سبد خرید")
+
       setIsTogglingCartStatus(false)
     }
   }
@@ -71,6 +78,9 @@ export const ProductCard = ({
     const url = generateWhatsAppShareUrl(product, storeSettings);
     window.open(url, '_blank');
   };
+  const files = product.files
+  const file = files && files.length > 0 && files[0]
+
 
   return (
     <motion.div
@@ -97,8 +107,8 @@ export const ProductCard = ({
       <div className="p-4 flex gap-4 items-start">
         <div className="w-24 h-24 rounded-xl bg-slate-100 border border-slate-200/80 overflow-hidden shrink-0 relative flex items-center justify-center shadow-inner">
           <img
-            src={product.files[0]?.image}
-            alt={product.files[0]?.alt_name}
+            src={file ? file?.image : ""}
+            alt={file ? file?.alt_name : ""}
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
             loading="lazy"
 
@@ -120,9 +130,11 @@ export const ProductCard = ({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200/80 group-hover:bg-sky-100 transition-colors">
-              {brandName}
-            </span>
+            {brandName &&
+              <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200/80 group-hover:bg-sky-100 transition-colors">
+                {brandName}
+              </span>
+            }
             {categoryName && (
               <span className="text-[11px] text-slate-500 truncate">
                 {categoryName}
@@ -149,13 +161,7 @@ export const ProductCard = ({
 
       </div>
 
-      {/* Compatible Pumps Note if Spare Part */}
-      {product.compatiblePumpModels && product.compatiblePumpModels.length > 0 && (
-        <div className="px-4 py-1.5 bg-amber-50/60 text-[11px] text-amber-900 border-b border-amber-100/80 truncate">
-          <span className="font-bold text-amber-800 ml-1">پمپ‌های سازگار:</span>
-          <span>{product.compatiblePumpModels.slice(0, 3).join(' • ')}</span>
-        </div>
-      )}
+
 
       {/* Footer Price & Add Button */}
       <div className="p-4 mt-auto flex items-center justify-between gap-3 bg-white">

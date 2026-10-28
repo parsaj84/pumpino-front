@@ -1,4 +1,4 @@
-import React, { startTransition, useEffect, useState, useTransition } from 'react';
+import React, { startTransition, useContext, useEffect, useMemo, useState, useTransition } from 'react';
 import {
   Package,
   Clock,
@@ -8,23 +8,15 @@ import {
   Truck,
   FileText,
   User,
-  Phone,
-  MapPin,
-  Building2,
   ChevronDown,
   ChevronUp,
-  Paperclip,
   BadgeDollarSignIcon,
-  X,
-  Sparkles,
   PackageCheck,
   Check,
   CreditCard,
   Copy,
-  Send,
-  DollarSign
 } from 'lucide-react';
-import { CustomerOrder, StoreSettings, CustomerProfile, OrderStatus, OrderMessage, ReturnRequest, UserData } from '../types';
+import { CustomerOrder, StoreSettings, OrderStatus,  ReturnRequest, UserData, OrderItem } from '../types';
 import { formatPrice, toPersianDigits } from '../utils/formatters';
 import { OrderTicketChat } from './OrderTicketChat';
 import API from '@/api/api';
@@ -33,19 +25,19 @@ import SubmitReciptModal from './SubmitReciptModal';
 import Spinner from './Spinner';
 import Skeleton from 'react-loading-skeleton';
 import { ReturnItemRequestModal } from './ReturnItemRequestModal';
+import { MainContext } from '../contexts/MainContext';
 
 interface CustomerOrdersViewProps {
-  orders: CustomerOrder[];
-  customerProfile: UserData | null;
+
+  customerProfile?: UserData | null ;
   storeSettings: StoreSettings;
   onOpenPrintInvoice: (order: CustomerOrder) => void;
   onEditProfile: () => void;
-  onUpdateOrders: (updatedOrders: CustomerOrder[]) => void;
   onClose?: () => void;
 }
 
 const STATUS_STEPS: { key: OrderStatus; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { key: 'pending', label: 'ثبت سفارش', icon: Clock },
+
   { key: 'PENDING_BY_ADMIN', label: 'در حال بررسی توسط مدیریت', icon: FileText },
   { key: 'ACCEPTED(WAITING_FOR_PAYMENT)', label: 'تایید شده(در انتظار پرداخت)', icon: CheckCircle2 },
   { key: "PAID", label: "پرداخت شده", icon: BadgeDollarSignIcon },
@@ -56,48 +48,49 @@ const STATUS_STEPS: { key: OrderStatus; label: string; icon: React.FC<{ classNam
 export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
   customerProfile,
   storeSettings,
-  onOpenPrintInvoice,
+
   onEditProfile,
-  onUpdateOrders,
-  onClose
+
 }) => {
+  const mainContextValue = useContext(MainContext)
+
+
   const [isReturnItemRequestModalOpen, setIsReturnItemRequestModalOpen] = useState(false)
-  const [editingItemID, setEditingItemID] = useState(null)
-  const [editingOrderPK, setEditingOrderPK] = useState(null)
-  const [orders, setOrders] = useState([])
-  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(orders[0]?.id || null);
+  const [editingItemID, setEditingItemID] = useState<OrderItem["pk"] | null>(null)
+  const [editingOrderPK, setEditingOrderPK] = useState<CustomerOrder["pk"] | null>(null)
+  const [orders, setOrders] = useState<CustomerOrder[]>([])
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null | number>(null);
   const [selectedStatusTab, setSelectedStatusTab] = useState<'all' | OrderStatus>('all');
-  const [paymentRefInputs, setPaymentRefInputs] = useState<{ [orderId: string]: string }>({});
-  const [paymentNoteInputs, setPaymentNoteInputs] = useState<{ [orderId: string]: string }>({});
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [isReciptSubmitModalActive, setIsReciptSubmitModalOpen] = useState(false)
-  const [reciptSubmitingOrder, setReciptSubmitingOrder] = useState(null)
-  const [orderGeneratingInvoice, setOrderGeneratingInvoice] = useState(null)
+  const [reciptSubmitingOrder, setReciptSubmitingOrder] = useState<CustomerOrder | null>(null)
+  const [orderGeneratingInvoice, setOrderGeneratingInvoice] = useState<CustomerOrder['pk'] | null>(null)
   const [fetchingOrders, setFetchingOrders] = useState(true)
   const [editingReturnRequest, setEditingReturnRequest] = useState<ReturnRequest | null>(null)
   useEffect(() => {
-    if (customerProfile.isAuthenticated) {
+    if (customerProfile?.isAuthenticated) {
       fetchData("orders/user-orders-list/", (response) => {
         const { status, data } = response
         if (status === 200) {
           setOrders(data)
         } else {
-          const e = "خطا"
-          console.log(e)
+          mainContextValue("خطا در دریافت اطلاعات")
         }
         setFetchingOrders(false)
-      }, () => setFetchingOrders(true))
+      }, () => setFetchingOrders(true) , () => mainContextValue?.onError("خطا در دریافت داده "))
     } else {
       setOrders([])
     }
   }, [customerProfile])
 
-  const filteredOrders = orders.filter(ele => {
+  const filteredOrders = useMemo(() => {
+    return orders.filter(ele => {
     if (selectedStatusTab === "all") {
       return true
     }
     return ele.order_status === selectedStatusTab
   })
+  }, [selectedStatusTab, orders])
 
 
   const handleCopy = (text: string, label: string) => {
@@ -106,60 +99,11 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
     setTimeout(() => setCopiedText(null), 2500);
   };
 
-  const handleRegisterPaymentSubmit = (orderId: string) => {
-    const ref = paymentRefInputs[orderId] || '';
-    if (!ref.trim()) {
-      alert('لطفاً شماره پیگیری یا فیش واریزی را وارد کنید.');
-      return;
-    }
-    const note = paymentNoteInputs[orderId] || '';
-    const nowShamsi = new Date().toLocaleDateString('fa-IR') + ' - ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
 
-    const updated = orders.map(o => {
 
-      if (o.id === orderId) {
-        return {
-          ...o,
-          paymentStatus: 'pending_verification' as const,
-          paymentReceiptRef: ref,
-          paymentReceiptDate: nowShamsi,
-          paymentNote: note,
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return o;
-    });
 
-    onUpdateOrders(updated);
-    alert('اطلاعات واریزی با موفقیت ثبت شد و در انتظار تایید مدیریت می‌باشد.');
-  };
 
-  const handleSendMessage = (orderId: string, messageText: string) => {
-    const nowShamsi = new Date().toLocaleDateString('fa-IR') + ' - ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
-    const senderName = customerProfile?.fullName || 'خریدار';
-    const newMsg: OrderMessage = {
-      id: `msg-${Date.now()}`,
-      sender: 'customer',
-      senderName,
-      message: messageText,
-      createdAt: nowShamsi
-    };
-
-    const updated = orders.map(o => {
-      if (o.id === orderId) {
-        return {
-          ...o,
-          messages: [...(o.messages || []), newMsg],
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return o;
-    });
-
-    onUpdateOrders(updated);
-  };
-
-  const handleInvoiceGenerate = async (orderId) => {
+  const handleInvoiceGenerate = async (orderId : CustomerOrder["pk"]) => {
     try {
       setOrderGeneratingInvoice(orderId)
       const response = await API.get(`orders/generate-order-invoice/${orderId?.toString()}/`, { responseType: "blob" })
@@ -173,15 +117,14 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
       link.remove()
       setOrderGeneratingInvoice(null)
 
-
     } catch (e) {
-      console.log(e)
+     mainContextValue?.onError("خطا در دریافت اطلاعات")
     }
   }
 
 
 
-  const getStatusBadge = (status: CustomerOrder['status']) => {
+  const getStatusBadge = (status: CustomerOrder['order_status']) => {
     switch (status) {
       case 'PENDING_BY_ADMIN':
         return (
@@ -239,7 +182,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
 
 
 
-  const getDeliveryTypeText = (deliveryType) => {
+  const getDeliveryTypeText = (deliveryType : CustomerOrder["delivery_type"]) => {
     switch (deliveryType) {
       case "MOTORCYCLE_COURIER":
         return "ارسال با پیک موتوری"
@@ -247,11 +190,13 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
         return "تحویل حضوری"
       case "PICK_UP_FROM_FREIGHT_TERMINAL":
         return "تحویل از باربری"
+      default :
+        return "ثبت نشده در برنامه"
     }
 
   }
 
-  const renderStatusStepper = (order) => {
+  const renderStatusStepper = (order : CustomerOrder) => {
     const status = order.order_status
 
 
@@ -400,7 +345,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
           </div>
         </div>
 
-        {customerProfile.isAuthenticated && (
+        {customerProfile?.isAuthenticated && (
           <button
             onClick={onEditProfile}
             className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 text-xs font-bold transition cursor-pointer"
@@ -412,7 +357,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
       </div>
 
       {/* Customer Profile Banner if logged in */}
-      {customerProfile.isAuthenticated ? (
+      {customerProfile?.isAuthenticated ? (
         <div className="mx-6 p-4 rounded-2xl bg-slate-50 border border-slate-200/80 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
           <div>
             <span className="text-slate-400 block mb-0.5">نام و فروشگاه خریدار:</span>
@@ -423,7 +368,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
           <div>
             <span className="text-slate-400 block mb-0.5">تلفن همراه:</span>
             <span className="font-bold text-slate-800 font-mono">
-              {toPersianDigits(customerProfile?.data?.phone)}
+              {customerProfile?.data?.phone}
             </span>
           </div>
           <div>
@@ -524,7 +469,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
 
       {/* Orders List */}
       <div className="p-6 pt-0 space-y-4">
-        {customerProfile.isAuthenticated ? fetchingOrders ? Array(6).fill({}).map((ele, idx) => (
+        {customerProfile?.isAuthenticated ? fetchingOrders ? Array(6).fill({}).map((ele, idx) => (
           <div key={idx}
             className="bg-white gap-1.5 flex justify-between items-center p-2 box-border rounded-2xl border border-slate-200 shadow-xs hover:border-sky-300 transition-all ">
             <div className='w-1/4'>
@@ -547,7 +492,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
             orders.map((order) => {
 
               const isExpanded = expandedOrderId === order.pk;
-              console.log(order.items)
+
               return (
                 <div
                   key={order.pk}
@@ -568,7 +513,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                             {order.pk}
                           </span>
                           <span className="text-xs text-slate-500">
-                            ({toPersianDigits(order.items.length)} قلم کالا)
+                            ({toPersianDigits(order.items?.length || 0)} قلم کالا)
                           </span>
                         </div>
                         <span className="text-[11px] text-slate-500">
@@ -583,7 +528,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                       <div className="text-left font-mono">
                         <span className="text-[10px] text-slate-400 block">مبلغ کل تایید شده توسط مدیر:</span>
                         <span className="text-sm font-extrabold text-sky-900">
-                          {order.admin_accepted_price ? formatPrice(order.admin_accepted_price, storeSettings.currencyUnit) : "هنوز توسط ادمین قیمتی تعیین نشده"}
+                          {order.admin_accepted_price ? formatPrice(Number(order.admin_accepted_price) , storeSettings.currencyUnit) : "هنوز توسط ادمین قیمتی تعیین نشده"}
                         </span>
                       </div>
 
@@ -599,16 +544,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                       {/* Visual Status Stepper */}
                       {renderStatusStepper(order)}
 
-                      {/* Admin Note if any */}
-                      {order.adminNote && (
-                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1">
-                          <span className="font-bold block flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                            پاسخ و یادداشت مدیریت فروشگاه:
-                          </span>
-                          <p>{order.adminNote}</p>
-                        </div>
-                      )}
+                    
 
                       {/* Order Shipping / Freight Details */}
                       <div className="bg-sky-50/60 p-3 rounded-xl border border-sky-100 flex flex-wrap items-center justify-between text-xs gap-2">
@@ -620,16 +556,11 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                           <>
                             <span className="text-sky-900 font-medium flex items-center gap-1.5">
                               <Truck className="w-4 h-4 text-sky-600" />
-                              هزینه ارسال <strong className="text-sky-950 font-bold">  {formatPrice(order.delivery_price)}  </strong>
+                              هزینه ارسال <strong className="text-sky-950 font-bold">  {formatPrice(Number(order.delivery_price || 0))}  </strong>
                             </span>
                           </>
                         )}
-
-                        {order.invoiceIssuedDate && (
-                          <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                            تاریخ صدور فاکتور: {toPersianDigits(order.invoiceIssuedDate)}
-                          </span>
-                        )}
+  
                       </div>
 
                       {/* Table of Items */}
@@ -649,13 +580,13 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {order.items.map((item, idx) => {
+                            {order.items?.map((item, idx) => {
                               const returnRequest = item.return_request || null;
                               
                               return (
                                 <tr key={idx} className="hover:bg-slate-50">
                                   <td className="p-2.5 font-mono text-slate-400 font-bold">{idx + 1}</td>
-                                  <td className="p-2.5 font-mono font-bold text-slate-700">{item.sku}</td>
+                                  <td className="p-2.5 font-mono font-bold text-slate-700">{item.product?.serial_number || "ثبت نشده"}</td>
                                   <td className="p-2.5 font-bold text-slate-900">
                                     {item.product?.title || "محصول یافت نشد!"}
                                     <span className="block text-[11px] text-slate-400 font-normal">
@@ -663,13 +594,13 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                                     </span>
                                   </td>
                                   <td className="p-2.5 text-center font-bold text-slate-600">
-                                    {toPersianDigits(item.quantity)}
+                                    {item.quantity ? toPersianDigits(item.quantity ) : "ثبت نشده"}
                                   </td>
                                   <td className="p-2.5 text-center font-extrabold text-sky-800 bg-sky-50/50">
-                                    {toPersianDigits(item.quantity_accepted_by_admin) || "----"}
+                                    {item.quantity_accepted_by_admin ? toPersianDigits(item.quantity_accepted_by_admin) : "----"}
                                   </td>
                                   <td className="p-2.5 font-bold text-slate-800">
-                                    {formatPrice(item.price, storeSettings.currencyUnit)}
+                                    {item.price ? formatPrice(item.price, storeSettings.currencyUnit) : "ثبت نشده"}
                                   </td>
                                   <td className="p-2.5 font-bold text-slate-800">
                                     {item.price_accepted_by_admin ? formatPrice(item.price_accepted_by_admin, storeSettings.currencyUnit) : "----"}
@@ -677,12 +608,9 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                                   <td className="p-2.5 font-bold text-slate-800">
                                     <button onClick={() => {
                                       setIsReturnItemRequestModalOpen(true);
-
                                       setEditingItemID(item.pk);
                                       setEditingOrderPK(order.pk);
                                       setEditingReturnRequest(returnRequest);
-
-
                                     }} className='p-1.5 rounded-xl bg-white border-2 text-gray-700 border-red-600 hover:border-0 hover:bg-red-600 hover:text-white transition-colors'>
                                       {returnRequest ? "ویرایش درخواست" : "درخواست مرجوعی"}
                                     </button>
@@ -710,7 +638,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                             </div>
                             <div>
                               <button onClick={() => {
-                                console.log("modal is opening")
+
                                 setIsReciptSubmitModalOpen(true)
                                 setReciptSubmitingOrder(order)
                               }} className='px-1.5 py-3 bg-emerald-400 rounded-md flex items-center justify-between gap-3'>
@@ -718,8 +646,8 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                                 <span className='text-bold text-sm text-white'>ثبت فیش واریزی</span>
                               </button>
                             </div>
-
-                            {order.order_status === 'PAID' && (
+                      
+                            {/* {order.order_status === 'PENDING' && (
                               <span className="bg-emerald-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
                                 <CheckCircle2 className="w-4 h-4" />
                                 <span> پرداخت شده</span>
@@ -731,7 +659,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                                 <Clock className="w-4 h-4" />
                                 <span>در انتظار بررسی و تایید مدیریت</span>
                               </span>
-                            )}
+                            )} */}
 
 
                           </div>
@@ -826,17 +754,16 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                           currentUserRole="customer"
                           page={"userOrders"}
                           user={customerProfile}
-                          currentUserName={customerProfile?.fname + customerProfile?.lname || 'خریدار'}
+                          currentUserName={((customerProfile?.data?.fname || "")+ (customerProfile?.data?.lname || "")) || 'خریدار'}
                           setOrders={setOrders}
-                          onSendMessage={handleSendMessage}
-                          defaultExpanded={order.messages && order.messages.length > 0}
+                          defaultExpanded={order.order_tickets && order.order_tickets?.length > 0}
                         />
                       </div>
 
                       {/* Bottom Actions */}
                       <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100">
                         <div className="text-xs text-slate-500">
-                          جمع کل نهایی فاکتور: <strong className="text-sky-900 font-mono text-sm">{order.price_accepted_by_admin ? formatPrice(order.price_accepted_by_admin, storeSettings.currencyUnit) : formatPrice(order.total_items_price, storeSettings.currencyUnit) + "(تایید نشده)"}</strong>
+                          جمع کل نهایی فاکتور: <strong className="text-sky-900 font-mono text-sm">{order.price_accepted_by_admin ? formatPrice(Number(order.price_accepted_by_admin) , storeSettings.currencyUnit) : formatPrice(Number(order.total_items_price), storeSettings.currencyUnit) + "(تایید نشده)"}</strong>
                         </div>
                         <div>
                           <button
@@ -867,7 +794,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
         setIsReturnItemRequestModalOpen(false)
         setEditingItemID(null)
         setEditingOrderPK(null)
-      }} itemID={editingItemID} returnRequest={editingReturnRequest} orderID={editingOrderPK} setOrders={setOrders} />}
+      }} itemID={editingItemID || null} returnRequest={editingReturnRequest} orderID={editingOrderPK || null} setOrders={setOrders} />}
     </div>
   );
 };

@@ -1,29 +1,19 @@
-import React, { useState } from 'react';
+import React, { Dispatch, SetStateAction } from 'react';
 import {
-  Wrench,
-  Search,
-  FileSpreadsheet,
-  Printer,
   ShoppingBag,
   SlidersHorizontal,
-  Lock,
   Phone,
-  MapPin,
   Clock,
-  RefreshCw,
-  Share2,
-  Sparkles,
   Zap,
   User,
   Package,
   Smartphone,
-  Hand,
   PackageX
 } from 'lucide-react';
-import { StoreSettings, Product, CustomerProfile } from '../types';
+import { StoreSettings, Product, CustomerProfile, UserData } from '../types';
 import { toPersianDigits } from '../utils/formatters';
 import Skeleton from 'react-loading-skeleton';
-import 'react-loading-skeleton/dist/skeleton.css'
+
 
 
 
@@ -33,30 +23,30 @@ interface HeaderProps {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   quoteCount: number;
-
+  user : UserData;
+  setUser : Dispatch<SetStateAction<UserData>>
   customerProfile: CustomerProfile | null;
   storeSettings: StoreSettings;
   products: Product[];
   onOpenAuthModal: () => void;
   onOpenPwaGuide?: () => void;
+  isAuthorizing : boolean;
+  productsCount : number,
+  setIsEditProfileModalActive : Dispatch<SetStateAction<boolean>>
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   quoteCount,
-
   customerProfile,
   storeSettings,
-  products,
   onOpenAuthModal,
   onOpenPwaGuide,
   isAuthorizing,
   user,
-  setUser,
   productsCount,
-  setIsEditProfileModalActive
-
+  setIsEditProfileModalActive,  
 }) => {
 
   return (
@@ -91,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>نصب اپلیکیشن</span>
               </button>
             )}
-            {!isAuthorizing && user.isAuthenticated && (user.data.is_admin || user.data.is_staff || user.data.is_superuser) && user.data.is_active && (
+            {!isAuthorizing && user.isAuthenticated && (user.data?.is_admin || user.data?.is_staff || user.data?.is_superuser) && user.data?.is_active && (
               <button
                 onClick={() => setActiveTab(("admin"))}
                 className=" = sm:inline-flex items-center gap-1 px-3 py-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300 border-2 border-red-500/20 transition text-[11px] font-medium cursor-pointer"

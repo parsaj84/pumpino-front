@@ -1,4 +1,4 @@
-import { useState } from "react";
+
 import { Transaction } from "../types";
 import { X } from "lucide-react";
 
@@ -11,7 +11,7 @@ interface TransactionDetailModalProos {
 
 export default function TransactionDetailModal({ transaction, onClose }: TransactionDetailModalProos) {
     const user = transaction.user
-    console.log(user)
+
     const getTransactionReason = (transaction: Transaction) => {
         if (transaction.return_request) {
             return `مرجوعی کالا با کد درخواست ${transaction.return_request.pk}`

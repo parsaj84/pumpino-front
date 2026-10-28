@@ -2,17 +2,12 @@ import React from 'react';
 import { 
   Printer, 
   X, 
-  CheckCircle2, 
-  Clock, 
   Truck, 
   Building2, 
-  Phone, 
-  MapPin, 
   CreditCard, 
   Share2, 
   FileText, 
   MessageSquare,
-  Copy,
   Download
 } from 'lucide-react';
 import { CustomerOrder, StoreSettings, CustomerInfo, QuoteItem } from '../types';

@@ -5,10 +5,15 @@ export interface Category {
   name: string
 }
 
+export interface PaginationData {
+  prevPage: null | number;
+  nextPage: null | number;
+  numPages: (number | string)[];
+}
+
 export interface Brand {
-  id: string;
-  nameFarsi: string;
-  nameEnglish: string;
+  pk: string;
+  name: string;
   country: string;
 }
 
@@ -29,40 +34,89 @@ export interface TechnicalSpecs {
   pressureRangeBar?: string; // e.g. '1.5 - 3 bar'
 }
 
-export interface User {
+export interface Province {
+  pk: string | number;
+  cities: City[];
+  name: string;
+  selected?: boolean
+
+}
+
+export interface City {
   pk: number | string;
-  is_authenticated: boolean;
+  name: string;
+  selected?: boolean;
+}
+
+export type keyOffFormConfig = keyof FormConfig 
+
+
+
+export interface Freight {
+  pk: number | string;
+  province?: Province | string | number;
+  selected?: boolean;
+  city?: City | string | number;
+  name: string;
+  
+}
+
+export interface User {
+  pk?: number | string;
+  is_authenticated?: boolean;
   fname?: string;
   lname?: string;
   phone?: string;
   total_deposit?: number | string | null;
-
+  is_superuser?: boolean;
+  is_admin?: boolean;
+  is_active?: boolean;
+  is_staff?: boolean;
+  province?: Province;
+  city?: City;
+  email?: string;
+  store_name?: string;
 }
 
 export interface UserData {
   isAuthenticated: boolean;
-  data: User;
+  data: User | null;
 }
 
+export interface ProductFile {
+  pk: number;
+  alt_name: string;
+  image: string
+}
+
+
+export interface ProductFeature {
+  feature_name: string;
+  feature_value: string;
+  pk?: string | number;
+}
 
 export interface Product {
-  id: string;
-  sku: string; // کد کالا
-  titleFarsi: string;
-  model: string;
-  categoryId: CategoryId;
-  brandId: string;
-  priceToman: number; // قیمت به تومان
-  oldPriceToman?: number;
-  stockStatus: 'in_stock' | 'low_stock' | 'contact_us' | 'out_of_stock';
-  quantityInStock: number;
-  imageUrl?: string;
-  specs: TechnicalSpecs;
-  compatiblePumpModels?: string[]; // برای قطعات یدکی: مدل پمپ‌های سازگار
+  pk: number | string;
+  title: string;
+  technical_model: string;
+  price: number; // قیمت به تومان
+  off?: number;
+  inventory: number;
+  features?: ProductFeature[];
+  files?: ProductFile[];
   description?: string;
-  updatedAt: string; // ISO string date
-  isFeatured?: boolean;
+  weight: string | number;
+  serial_number: string;
+  product_type: "pomp" | "part";
+  categories?: Category[]
+  brand?: Brand;
+  compatible_pomps?: Product[];
+  item_total_price?: number;
+  images?: ({ file: File; altName: string; name: string; url: string })[]
+
 }
+
 
 export interface QuoteItem {
   product: Product;
@@ -83,21 +137,22 @@ export interface CustomerProfile {
   createdAt: string;
 }
 
-export type OrderStatus = 'pending' | 'reviewed' | 'approved' | 'shipped' | 'delivered' | 'rejected';
+
+export type OrderStatus = 'PENDING_BY_ADMIN' | 'ACCEPTED(WAITING_FOR_PAYMENT)' | 'PAID' | 'OUT_FOR_TRANSIT' | 'DELIVERED' | 'REJECTED';
 
 export type PaymentStatus = 'unpaid' | 'pending_verification' | 'paid_approved' | 'rejected';
 
+
 export interface OrderItem {
-  productId: string;
-  sku: string;
-  productTitle: string;
-  model: string;
-  requestedQuantity: number;
-  approvedQuantity: number; // تعداد تایید شده توسط مدیر
-  originalPriceToman: number; // قیمت پایه
-  approvedPriceToman: number; // قیمت ویرایش شده توسط مدیر
-  discountPercent?: number; // درصد تخفیف
-  customNote?: string;
+  pk?: number | string;
+  quantity?: number;
+  quantity_accepted_by_admin?: number;
+  product?: Product;
+  price?: number;
+
+  price_accepted_by_admin?: number;
+  return_request?: ReturnRequest;
+  off?: number | string;
 }
 
 export interface BankDetails {
@@ -119,39 +174,55 @@ export interface BankAccountItem {
 }
 
 export interface OrderMessage {
-  id: string;
-  sender: 'customer' | 'admin';
-  senderName: string;
-  message: string;
-  createdAt: string; // e.g. '1403/05/12 - 14:30'
+  pk?: string;
+  user_from: User;
+  user_to: User;
+  title: string;
+  text: string;
+  date_created: string;
+  date_updated: string;
 }
 
+
+
+export interface CartItem {
+  product: Product;
+  product_id: string | number;
+  quantity: string | number
+
+}
+
+export interface CartData {
+  post_price: number | string;
+  total_items_price: number | string;
+  cart_items: CartItem[]
+}
+
+export type OrderDeliveryType = "MOTORCYCLE_COURIER" | "INPERSON_PICKUP" | "PICK_UP_FROM_FREIGHT_TERMINAL"
+
 export interface CustomerOrder {
-  pk: string;
-  orderNumber: string; // e.g., ORD-1403-1002
-  createdAt: string;
-  updatedAt: string;
+  pk: string | number;
+  user?: User;
+  fname?: string;
+  lname?: string;
+  phone?: string;
+  address?: string;
+  province?: Province;
+  city?: City;
+  delivery_type?: string;
+  admin_accepted_price?: string | number;
+  total_items_price?: string | number;
+  delivery_price?: number;
+  order_status?: OrderStatus;
+  freight?: Freight;
+  date_created: string;
+  date_updated: string;
+  order_tickets?: OrderMessage[];
+  payment_image?: string
   customerProfile: CustomerProfile;
-  items: OrderItem[];
-  status: OrderStatus;
-  statusTitle: string;
-  adminNote?: string;
-  shippingFreightName: string; // نام باربری یا نحوه ارسال درخواستی
-  shippingLocation?: ShippingLocationType;
-  shippingMethod?: ShippingMethodType;
-  shippingMethodTitle?: string;
-  selectedGatewayId?: string;
-  selectedGatewayName?: string;
-  totalAmountToman: number; // مبلغ کل نهایی صادر شده
-  discountToman?: number; // مبلغ تخفیف کل
-  invoiceIssuedDate?: string;
-  isInvoiceIssued: boolean; // آیا فاکتور خرید صادر شده یا خیر
-  paymentStatus?: PaymentStatus;
-  paymentReceiptRef?: string; // کد پیگیری یا شماره فیش/کارت
-  paymentReceiptDate?: string; // تاریخ/زمان ثبت واریزی
-  paymentNote?: string; // توضیحات مشتری در خصوص واریز
-  adminBankDetails?: BankDetails;
-  messages?: OrderMessage[]; // چت و پشتیبانی اختصاصی برای این پیش فاکتور
+  items?: OrderItem[];
+  price_accepted_by_admin?: number | string;
+
 }
 
 export interface CustomerInfo {
@@ -278,25 +349,22 @@ export interface PrinterSettings {
 type ReturnRequestStatus = "pending" | "approved" | "rejected" | "received" | "refunded" | "canceled"
 type ReturnRequestReason = "all" | "damaged" | "wrong_item" | "defective" | "not_as_described" | "change_of_mind" | "other"
 
-export interface OrderItem {
-  product: Product;
-  total_items_price: string | number;
-  return_request: string;
-  pk: string | number
-}
+
 
 
 export interface ReturnRequest {
-  reason: ReturnRequestReason;
+  reason: string | ReturnRequestReason;
   pk: string | number;
   reason_prove_file: string;
   description?: string;
-  status?: ReturnRequestStatus;
+  status: string | ReturnRequestStatus;
   item?: OrderItem;
   return_price_accepted_by_admin?: number | string;
   paid_price?: string | number;
   order?: CustomerOrder
-  user?: User
+  user?: User;
+  date_created ?:   string;
+  date_updated ?: string
 }
 
 export interface TotalTransactionData {
@@ -307,13 +375,15 @@ export interface TotalTransactionData {
 }
 
 export interface FormConfig {
-  label:string,
+  label: string,
   code: string,
-  value: string;
+  value?: string | number | "" | null;
   isNumeric: boolean
-  rigex: null | RegExp,
+  regex: null | RegExp,
   required: boolean,
-  error: string
+  error: string,
+  onInput?: null | Function
+  help_placeholder?:string
 }
 
 export interface Transaction {
@@ -341,6 +411,9 @@ export type AdminPermission =
   | 'printers'                // تنظیمات پرینترها
   | 'excel_import'            // خروجی/ورودی اکسل
   | 'seo';                    // تنظیمات سئو
+
+export type AdminSubTab = 'main_dashboard' | 'orders_manage' | 'accounting' | 'customer_transactions' | 'gateways' | 'low_stock' | 'quick_prices' | 'add_product' | 'bulk_percent' | 'excel_import' | 'settings' | 'seo' | 'sms' | 'printers' | 'categories_manage' | 'admin_users' | "return_requests"
+
 
 export interface AdminUser {
   id: string;
@@ -412,7 +485,5 @@ export interface FilterState {
   stockOnly: boolean;
   minPrice: number;
   maxPrice: number;
-  sortBy: 'featured' | 'price_asc' | 'price_desc' | 'updated_desc' | 'name_asc';
-  powerHpFilter: string; // 'all' or numeric
   compatiblePumpQuery: string;
 }

@@ -1,23 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { User, Phone, MapPin, Truck, Building2, CheckCircle2, X, Smartphone, KeyRound, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react';
-import { CustomerProfile } from '../types';
+import React, { useState, useEffect, Dispatch, SetStateAction } from 'react';
+import { User, CheckCircle2, X, Smartphone, KeyRound, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react';
+import {  UserData as UserDataType } from '../types';
 import { toPersianDigits } from '../utils/formatters';
 import API from '@/api/api';
 import Spinner from './Spinner';
 
 
 interface CustomerAuthModalProps {
-  currentProfile: CustomerProfile | null;
-  onSaveProfile: (profile: CustomerProfile) => void;
   onClose: () => void;
   title?: string;
+  setUser : Dispatch<SetStateAction<UserDataType>>
 }
 
 export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
-  currentProfile,
   setUser,
 
-  onSaveProfile,
+
   onClose,
   title = 'ورود / ثبت‌ نام سریع با شماره موبایل'
 }) => {
@@ -26,19 +24,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
      'mobile'
   );
 
-  const [mobilePhone, setMobilePhone] = useState(currentProfile?.mobilePhone || '');
+  const [mobilePhone, setMobilePhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
 
   const [timer, setTimer] = useState(120);
-
-
-  // Profile details state
-  const [fullName, setFullName] = useState(currentProfile?.fullName || '');
-  const [storeName, setStoreName] = useState(currentProfile?.storeName || '');
-  const [telephone, setTelephone] = useState(currentProfile?.telephone || '');
-  const [provinceCity, setProvinceCity] = useState(currentProfile?.provinceCity || '');
-  const [address, setAddress] = useState(currentProfile?.address || '');
-  const [freightName, setFreightName] = useState(currentProfile?.freightName || 'باربری جهانگیر');
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -79,7 +68,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       }
 
     } catch (e) {
-      console.log(e)
+
       setErrors({ mobilePhone: "خطای وب سرویس" })
       setIsSending(false)
     }
@@ -99,7 +88,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       setIsSending(true)
       const { data, status } = await API.post("/users/otp-code-verification/", { phone: mobilePhone, validation_code: otpCode }, { withCredentials: true })
       if (status === 200) {
-        console.log(data)
+
         localStorage.setItem("accessToken", data.access_token)
         setIsSending(false)
         setUser({ isAuthenticated: true, data: data.user })
@@ -134,35 +123,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   };
   
 
-  // Step 3: Save details & Sign In
-  const handleSubmitProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newErrors: { [key: string]: string } = {};
 
-    if (!fullName.trim()) newErrors.fullName = 'لطفاً نام و نام خانوادگی را وارد نمایید.';
-    if (!provinceCity.trim()) newErrors.provinceCity = 'لطفاً استان و شهر مقصد را مشخص کنید.';
-    if (!address.trim()) newErrors.address = 'لطفاً آدرس دقیق جهت ارسال باربری را ثبت کنید.';
-    if (!freightName.trim()) newErrors.freightName = 'لطفاً نام باربری یا نحوه ارسال را مشخص کنید.';
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    const updatedProfile: CustomerProfile = {
-      id: currentProfile?.id || `cust-${Date.now()}`,
-      fullName: fullName.trim(),
-      storeName: storeName.trim(),
-      mobilePhone: mobilePhone.trim(),
-      telephone: telephone.trim(),
-      provinceCity: provinceCity.trim(),
-      address: address.trim(),
-      freightName: freightName.trim(),
-      createdAt: currentProfile?.createdAt || new Date().toISOString()
-    };
-
-    onSaveProfile(updatedProfile);
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs overflow-y-auto animate-fadeIn">

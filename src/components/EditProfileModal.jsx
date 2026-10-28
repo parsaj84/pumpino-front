@@ -1,12 +1,15 @@
 import { User, X, Smartphone, Building2, Ampersand, Mail, CheckCircle2, Edit, Turtle } from "lucide-react";
-import { useCallback, useEffect, useEffectEvent, useState } from "react";
+import {  useContext, useEffect,  useMemo, useState } from "react";
 import Spinner from "./Spinner";
 import SelectInput from "./SelectInput";
 import fetchData from "../utils/fetchData";
 import API from "@/api/api";
+import { MainContext } from "../contexts/MainContext";
 
 
-export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive, userData , setUser }) {
+export default function EditProfileModal({ setIsEditPhoneModalOpen, setIsActive, userData, setUser }) {
+    const mainContextValue = useContext(MainContext)
+
 
     const [formConfig, setFormConfig] = useState([
         { code: "phone", icon: <Smartphone className="w-3.5 h-3.5 text-emerald-600" />, editable: false, title: "شماره تلفن", type: "text", isNumeric: true, regex: /^(?:09\d{9}|\+989\d{9})$/, value: userData.phone, error: "" },
@@ -14,18 +17,18 @@ export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive,
         { code: "lname", icon: <User className="w-3.5 h-3.5 text-sky-600" />, editable: true, title: "نام خانوادگی", isNumeric: false, type: "text", value: userData.lname, error: "" },
         { code: "nationall_code", icon: <Ampersand className="w-3.5 h-3.5 text-sky-600" />, editable: true, title: "کد ملی", isNumeric: true, regex: /^\d{10}$/, type: "text", value: userData.nationall_code, error: "" },
         { code: "email", icon: <Mail className="w-3.5 h-3.5 text-sky-600" />, editable: true, title: "ایمیل", isNumeric: false, regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, type: "text", value: userData.email, error: "" },
-        { code: "store_name", icon: <Building2 className="w-3.5 h-3.5 text-sky-600" />, editable: true, title: "نام فروشگاه", isNumeric: false,  type: "text", value: userData?.store_name, error: "" },
+        { code: "store_name", icon: <Building2 className="w-3.5 h-3.5 text-sky-600" />, editable: true, title: "نام فروشگاه", isNumeric: false, type: "text", value: userData?.store_name, error: "" },
     ])
     const [isSending, setIsSending] = useState(false)
     const [locations, setLocations] = useState([])
     const [selectedProvincePK, setSelectedProvincePK] = useState(userData?.province?.pk || null)
     const [isLoadnigLocations, setIsLoadingLocations] = useState(true)
     const [selectedCityPk, setSelcetedCityPk] = useState(userData?.city?.pk || null)
-    const [isLoggingOut , setIsLoggingOut] = useState(false)
+    const [isLoggingOut, setIsLoggingOut] = useState(false)
 
     useEffect(() => {
-        setFormConfig(prev => [...prev].map(ele => ({...ele , value : userData[ele.code]})))
-    } , [userData])
+        setFormConfig(prev => [...prev].map(ele => ({ ...ele, value: userData[ele.code] })))
+    }, [userData])
 
     useEffect(() => {
         fetchData("users/fetch-cities-provinces/", (response) => {
@@ -40,43 +43,44 @@ export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive,
                 }
             }
             setIsLoadingLocations(false)
-        })
+        }, null, () => mainContextValue.onError("خطا در دریافت اطلاعات"))
     }, []);
-  const provinces = locations?.map((ele, idx) => {
+    const provinces = useMemo(() => locations?.map((ele, idx) => {
+        if (selectedProvincePK) {
+            ele.selected = selectedProvincePK === ele.pk
+            return ele
+        }
+        ele.selected = idx === 0
+        return ele
+    }), [locations, selectedProvincePK])
 
-    if (selectedProvincePK) {
-      ele.selected = selectedProvincePK === ele.pk
-      return ele
-    }
-    ele.selected = idx === 0
-    return ele
-  })
-  const selectedProvince = provinces.find(ele => ele.selected)
-  const cities = selectedProvince?.cities?.map((ele, idx) => {
-    if (selectedCityPk && selectedProvince?.cities.find(ele => ele.pk === selectedCityPk)) {
-      ele.selected = ele.pk === selectedCityPk
-      return ele
-    }
-    if (userData?.city) {
-      ele.selected = userData?.city.pk === ele.pk
-    }
-    ele.selected = idx === 0
-    return ele
-  })
 
+    const selectedProvince = provinces.find(ele => ele.selected)
+
+    const cities = useMemo(() => selectedProvince?.cities?.map((ele, idx) => {
+        if (selectedCityPk && selectedProvince?.cities.find(ele => ele.pk === selectedCityPk)) {
+            ele.selected = ele.pk === selectedCityPk
+            return ele
+        }
+        if (userData?.city) {
+            ele.selected = userData?.city.pk === ele.pk
+        }
+        ele.selected = idx === 0
+        return ele
+    }), [selectedProvince , selectedCityPk , selectedProvince , userData])
 
     async function logout() {
         try {
             setIsLoggingOut(true)
-            const {data , status } = await API.post("users/logout/" ) 
+            const { data, status } = await API.post("users/logout/")
             if (status === 200 && data.success) {
                 localStorage.removeItem("accessToken")
             }
-            setUser({isAuthenticated : false , data : {}})
+            setUser({ isAuthenticated: false, data: {} })
             setIsActive(false)
             setIsLoggingOut(false)
         } catch (e) {
-            console.log(e)
+            mainContextValue?.onError("خطا در فرایند خروج")
             setIsLoggingOut(false)
         }
     }
@@ -84,7 +88,6 @@ export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive,
 
     async function handleSubmitProfile(e) {
         try {
-            console.log("form handling")
             e.preventDefault()
             let isValidData = true
             const validatedData = {}
@@ -92,7 +95,7 @@ export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive,
                 if (!ele.editable) {
                     return ele
                 }
-                if (ele.value && ele.regex &&  !ele.regex.test(ele.value)) {
+                if (ele.value && ele.regex && !ele.regex.test(ele.value)) {
                     ele.error = `لطفا یک مقدار معتبر برای ${ele.title} وارد کنید.`
                     isValidData = false
                 }
@@ -104,16 +107,14 @@ export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive,
                 setIsSending(true)
                 validatedData["province_id"] = selectedProvincePK
                 validatedData["city_id"] = selectedCityPk
-                console.log("validated data", validatedData)
-                const { data, status } = await API.post("users/edit-profile/", {...validatedData});
+                const { data, status } = await API.post("users/edit-profile/", { ...validatedData });
                 if (status === 200) {
-                    setUser({isAuthenticated : true , data : data})
-                } else if (status === 400){
-                    
+                    setUser({ isAuthenticated: true, data: data })
+                } else if (status === 400) {
+
                     setFormConfig(prev => [...prev].map(ele => {
-                        
+
                         if (Object.keys(data).includes(ele.code)) {
-                            console.log("fields errored" ,  ele.code)
                             ele.error = data[ele.code][0]
                         }
                         return ele
@@ -122,7 +123,7 @@ export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive,
                 setIsSending(false)
             }
         } catch (e) {
-            console.log(e)
+            mainContextValue.onError("خطایی در فرایند ارسال اطلاعات")
             setIsSending(false)
         }
     }
@@ -164,7 +165,7 @@ export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive,
                                 <label className="text-xs font-bold text-slate-700 block mb-1.5 flex  items-center gap-1">
                                     {ele.icon}
                                     <span>{ele.title}</span>
-                                    {ele.editable || <div onClick={() => {setIsEditPhoneModalOpen(true) }} className=" mr-auto  flex justify-center items-center gap-1 px-1 py-1 rounded-xl text-xs md:text-sm font-extrabold transition cursor-pointer whitespace-nowrap border mr-auto bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20">
+                                    {ele.editable || <div onClick={() => { setIsEditPhoneModalOpen(true) }} className=" mr-auto  flex justify-center items-center gap-1 px-1 py-1 rounded-xl text-xs md:text-sm font-extrabold transition cursor-pointer whitespace-nowrap border mr-auto bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20">
                                         <span>تغییر شماره تلفن</span>
                                         <Edit className="mr-auto w-3.5 h-3.5 text-sky-600" />
                                     </div>}
@@ -181,7 +182,6 @@ export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive,
                                         setFormConfig(prev => {
                                             const output = [...prev]
                                             return output.map(conf => {
-                                                console.log(conf)
                                                 if (conf.code === ele.code) {
                                                     conf.value = e.target.value
                                                     if (conf.regex && e.target.value) {
@@ -210,8 +210,8 @@ export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive,
                                 {ele.error && <p className="text-[11px] text-rose-600 mt-1">{ele.error}</p>}
                             </div>
                         ))}
-                        <SelectInput labelProperty={"name"} isLoadingItems={isLoadnigLocations} selectedItem={provinces?.find(ele => ele.selected) } onItemSelected={(item) => { setSelectedProvincePK(item.pk); setSelcetedCityPk(item?.cities[0]?.pk)}} items={provinces} Icon={<Building2 className="w-3.5 h-3.5 text-sky-600" />} label={"استان"} />
-                        <SelectInput labelProperty={"name"} isLoadingItems={isLoadnigLocations} selectedItem={cities?.find(ele => ele.selected) } onItemSelected={(item) => setSelcetedCityPk(item.pk)} items={cities} Icon={<Building2 className="w-3.5 h-3.5 text-sky-600" />} label={"شهر"} />
+                        <SelectInput labelProperty={"name"} isLoadingItems={isLoadnigLocations} selectedItem={provinces?.find(ele => ele.selected)} onItemSelected={(item) => { setSelectedProvincePK(item.pk); setSelcetedCityPk(item?.cities[0]?.pk) }} items={provinces} Icon={<Building2 className="w-3.5 h-3.5 text-sky-600" />} label={"استان"} />
+                        <SelectInput labelProperty={"name"} isLoadingItems={isLoadnigLocations} selectedItem={cities?.find(ele => ele.selected)} onItemSelected={(item) => setSelcetedCityPk(item.pk)} items={cities} Icon={<Building2 className="w-3.5 h-3.5 text-sky-600" />} label={"شهر"} />
                     </div>
 
                     {/* Actions */}
@@ -219,13 +219,13 @@ export default function EditProfileModal({setIsEditPhoneModalOpen , setIsActive,
                         <button
                             type="button"
                             disabled={isLoggingOut}
-                            onClick={() => {logout()}}
+                            onClick={() => { logout() }}
                             className="px-4 py-2.5 rounded-xl border border-red-300 text-red-700 text-xs font-bold hover:bg-red-100 transition cursor-pointer"
                         >
-                            
-                            {isLoggingOut ?  <Spinner width={20} height={20} borderMainColor={"white"} borderWidth={1.5} borderTopColor={"red"} /> : "خروج"}
+
+                            {isLoggingOut ? <Spinner width={20} height={20} borderMainColor={"white"} borderWidth={1.5} borderTopColor={"red"} /> : "خروج"}
                         </button>
-                        
+
                         <button
                             type="button"
                             onClick={() => setIsActive(false)}

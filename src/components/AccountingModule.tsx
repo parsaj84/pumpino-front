@@ -2,12 +2,10 @@ import React, { useState } from 'react';
 import {
   CircleDollarSign,
   TrendingUp,
-  TrendingDown,
   Clock,
   CheckCircle2,
   AlertCircle,
   Plus,
-  Download,
   Receipt,
   CreditCard,
   Users,
@@ -16,14 +14,9 @@ import {
   Trash2,
   Calendar,
   Search,
-  Filter,
-  ArrowUpRight,
-  ArrowDownRight,
   PieChart,
-  Printer,
   Building2,
   Phone,
-  FileText
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { CustomerOrder, StoreSettings, PaymentStatus, OrderStatus, ExpenseEntry } from '../types';

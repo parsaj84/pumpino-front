@@ -1,22 +1,33 @@
 import API from "@/api/api";
 import { Check, CheckCircle2, ChevronLeft, ChevronRight, Download, Edit3, FileSpreadsheet, Image, Images, Layers, Plus, Trash2, Upload, Wrench, X } from "lucide-react";
-import { startTransition, useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
+import { ChangeEvent, startTransition, SubmitEvent, useCallback, useContext, useDeferredValue, useEffect, useRef, useState } from "react";
 import * as XLSX from 'xlsx';
 import Spinner from "./Spinner";
 import { formatPrice } from "../utils/formatters";
 import SelectInput from "./SelectInput";
+import { Brand, Category, Product, ProductFile, StoreSettings } from "../types";
+import { MainContext } from "../contexts/MainContext";
 
 
-export default function ExcelProductImport({ storeSettings, brands, categories }) {
+interface ExcleProductImportProp {
+    storeSettings: StoreSettings;
+    brands: Brand[];
+    categories: Category[]
+}
+
+
+export default function ExcelProductImport({ storeSettings, brands, categories }: ExcleProductImportProp) {
     const compileCategories = useCallback(() => {
         return categories?.map(ele => ({ selected: false, data: ele }))
     }, [categories])
-    const excelInputRef = useRef(null)
+    const mainContextValue = useContext(MainContext)
+    const excelInputRef = useRef<HTMLInputElement>(null)
     const [excelName, setExcelName] = useState("")
     const [successMsg, setSuccessMsg] = useState("")
     const [isSending, setIsSending] = useState<boolean>(false)
-    const [updatingProductPK, setUpdatingProductPK] = useState(null)
-    const [products, setProducts] = useState([])
+    const [productType, setProductType] = useState<"pomp" | "part">("part")
+    const [updatingProductPK, setUpdatingProductPK] = useState<number | null | string>(null)
+    const [products, setProducts] = useState<Product[]>([])
     const [isBrandModalActive, setIsBrandModalActive] = useState<boolean>(false)
     const [isCategoryModalActive, setIsCategoryModalActive] = useState<boolean>(false)
     const [isImageModalActive, setIsImageModalActive] = useState<boolean>(false)
@@ -30,7 +41,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
     const deferedUnSelectedCategoriesSearchQuery = useDeferredValue(unSelectedCategoriesSearchQuery)
     const [selectedCategoriesSearchQuery, setSelectedCategoriedSearchQuery] = useState("")
     const deferedSelectedCategoriesSearchQuery = useDeferredValue(selectedCategoriesSearchQuery)
-    const [imagePayloads, setImagePayloads] = useState([])
+    const [imagePayloads, setImagePayloads] = useState<({ file: File; altName: string; name: string; url?: string | ArrayBufffer | null })[]>([])
     const [categoryError, setCategoryError] = useState("")
     const [imageError, setImageError] = useState("")
     const [features, setFeatures] = useState([])
@@ -39,23 +50,15 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
     const [isFeatureAddModalOpen, setIsFeatureAddModalOpen] = useState(false)
     const [featureError, setFeatureError] = useState("")
 
-    const imageInputHandler = async (file) => {
+    const imageInputHandler = async (file: File) => {
         try {
             const fileReader = new FileReader()
             fileReader.addEventListener("load", (e) => {
-
-                setImagePayloads([...imagePayloads, file].map(ele => {
-                    return {
-                        file: ele,
-                        altName: ele.name,
-                        name: ele.name,
-                        url: e.target?.result
-                    }
-                }))
+                setImagePayloads( prev => [...prev, {file : file , altName : file.name , name : file.name , url :e.target?.result}])
             })
             fileReader.readAsDataURL(file)
         } catch (e) {
-            console.log(e)
+            mainContextValue?.onError("خطا در پردازش تصویر")
         }
     }
 
@@ -66,14 +69,13 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
 
 
 
-    const selectedCategoriesRef = useRef(null)
-    const unSelectedCategoriesRef = useRef(null)
-
-    console.log(products.find(ele => ele.pk === modifingProductPK)?.categories, "categories", modifingProductPK)
+    const selectedCategoriesRef = useRef<HTMLSelectElement>(null)
+    const unSelectedCategoriesRef = useRef<HTMLSelectElement>(null)
 
 
 
-    const selectedCategories = categoriesData.filter(ele => {
+
+    const selectedCategories: { selected: boolean, data: Category }[] = categoriesData.filter(ele => {
         if (!ele.selected) {
             return false
         }
@@ -95,58 +97,87 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
     })
 
 
-    const handleCategorySubmit = () => {
 
-    }
+    const handleProductTypeChange = useCallback((p: Product, productType: "pomp" | "part") => {
+        setProducts(prev => [...prev].map(product => {
+            if (product.pk === p.pk) {
+                product.product_type = productType
+            }
+            return product
+        }))
+    }, [])
 
+    const handleProductWeightChange = useCallback((p: Product, weight: number | string) => {
+        setProducts(prev => [...prev].map(product => {
+            if (product.pk === p.pk) {
+                product.weight = weight
+            }
+            return product
+        }))
+    }, [])
 
-
-    const handleProductPriceChange = (productId, value) => {
+    const handleProductPriceChange = (productId: string | number, value: string | number) => {
         setProducts(prev => [...prev].map(product => {
             if (product.pk === productId) {
-                product.price = value
+                product.price = Number(value)
             }
             return product
         }))
     }
 
-    const handleProductInventoryChange = (productId, value) => {
+    const handleProductInventoryChange = (productId: string | number, value: string | number) => {
         setProducts(prev => [...prev].map(product => {
             if (product.pk === productId) {
-                product.inventory = value
+                product.inventory = Number(value)
             }
             return product
         }));
     }
 
+    const validatedProductData = useCallback(async (product: Product) => {
 
+        if (!Number(product.inventory)) {
+            mainContextValue?.onError("لطفا تعداد را وارد کنید")
+            return false;
+        }
+        if (!Number(product.weight)) {
+            mainContextValue?.onError("لطفا وزن را وارد کنید")
 
-    const handleProductUpdate = async (product) => {
+            return false;
+        }
+        if (!Number(product.price)) {
+            mainContextValue?.onError("لطفا قیمت را وارد کنید")
+            return false;
+        }
+
+        return true
+    }, [mainContextValue])
+
+    const handleProductUpdate = async (product: Product) => {
         try {
+            const isValid = await validatedProductData(product)
+            if (!isValid) {
+                return;
+            }
             setUpdatingProductPK(product.pk)
-            console.log(product)
-
-
             const { images, features, brand, categories, ...otherData } = product
-
             const productPK = otherData?.pk
-
-            delete otherData["pk"]
-
+            let additionalData: Record<string, string | number | ProductFile[] | undefined | Product[]> = otherData
+            delete additionalData["pk"]
             const formData = new FormData()
 
 
-
-            Object.entries(otherData).forEach(ele => {
-                console.log(ele)
+            Object.entries(otherData).forEach((ele) => {
                 formData.append(ele[0], ele[1])
             })
+
 
             images?.forEach(ele => {
                 formData.append(ele.name, ele.file);
                 formData.append("image-alt-" + ele.name, ele.altName);
 
             })
+
             if (features?.length) {
                 formData.append("features", JSON.stringify(features))
             }
@@ -156,8 +187,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
             if (brand) {
                 formData.append("brand_id", brand.pk)
             }
-
-
+            formData.append("off", ( Number(otherData.off) || 0)?.toString())
             const { data, status } = await API.post("products/product-admin-submit/"
                 , formData
             )
@@ -166,13 +196,12 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
 
             }
             else {
-                const e = data.error_des || data.detail || "خطا"
-                console.log(e)
+                mainContextValue?.onError(status === 400 ? "داده ها معتبر نیستند" : "خطا غیرمنتظره")
             }
 
             setUpdatingProductPK(null)
         } catch (e) {
-            console.log(e)
+            mainContextValue?.onError("خطای غیرمنتظره رخ داده است")
             setUpdatingProductPK(null)
 
         }
@@ -182,7 +211,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
 
         setProducts(prev => [...prev].map(product => {
             if (product.pk === productId) {
-                product.off = value
+                product.off = Number(value) || 0
             }
             return product
         }));
@@ -190,21 +219,19 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
     }
 
 
-    const handleExcelSubmit = async (e: Event) => {
+    const handleExcelSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
         try {
             e.preventDefault()
             setFileError("")
             const formData = new FormData(e.currentTarget);
-
-            console.log(formData.get("excel_file"), "moz is moz ")
-            const file = formData.get("excel_file");
-            if (!file?.size) {
+            const file: File | null = formData?.get("excel_file") || null;
+            if (!file || !file?.size) {
                 setFileError("لطفا فایل را وارد کنید")
                 return
             }
 
 
-            const arrayBuffer = await file?.arrayBuffer();
+            const arrayBuffer : ArrayBuffer = await file?.arrayBuffer();
 
             const workbook = XLSX.read(arrayBuffer, {
                 type: "array",
@@ -212,19 +239,25 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
 
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
 
-            const excelData = XLSX.utils.sheet_to_json(worksheet);
-            setProducts(prev => excelData.map((ele, idx) => ({ ...ele, pk: idx + 1 })))
-            excelInputRef.current.value = ""
+            const excelData: Product[] = XLSX.utils.sheet_to_json(worksheet);
+            setProducts(excelData.map((ele, idx) => ({ ...ele, price : Number(ele.price) || 0, inventory : Number(ele.inventory) || 0 , weight : Number(ele.weight) | 0  ,off : Number(ele.off) || 0 ,product_type: (ele.product_type === "part" || ele.product_type === "pomp") ? ele.product_type : "pomp", pk: idx + 1 })))
+            if (excelInputRef.current) {
+                excelInputRef.current.value = ""
+            }
             setExcelName("")
 
         } catch (e) {
-            console.log(e)
-            // setIsSending(false)
+            mainContextValue?.onError("خطا در پردازش فایل اکسل")
         }
     }
 
-    const handleExcelUpload = (e) => {
-        setExcelName(e.target.files[0].name)
+    const handleExcelUpload = (e : ChangeEvent<HTMLInputElement>) => {
+        const files = e.currentTarget.files
+        if (files?.length) {
+             const file = files[0]
+            setExcelName(file.name)
+        }
+        
     }
 
     const handleDownloadSampleExcel = () => {
@@ -322,7 +355,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                     <form className="flex flex-col items-center" onSubmit={handleExcelSubmit}>
                         <div onClick={() => {
                             if (excelInputRef.current) {
-                                excelInputRef.current.click()
+                                excelInputRef.current?.click()
                             }
                         }} className="p-6 w-full flex flex-col items-center border-2 border-dashed border-emerald-300 rounded-2xl bg-emerald-50/40 text-center space-y-3 hover:border-emerald-500 transition">
                             <FileSpreadsheet className="w-12 h-12 text-emerald-600 mx-auto" />
@@ -374,6 +407,8 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                 <th className="p-3">قیمت فعلی با تخفیف(تومان)</th>
                                 <th className="p-3">قیمت جدید (تومان)</th>
                                 <th className="p-3">تعداد انبار</th>
+                                <th className="p-3">وزن</th>
+                                <th className="p-3">نوع محصول</th>
                                 <th className="p-3 text-center">افزودن تصویر</th>
                                 <th className="p-3 text-center">افرودن ویژگی </th>
                                 <th className="p-3 text-center">افزودن برند </th>
@@ -394,6 +429,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                             <input
                                                 type="number"
                                                 step="10"
+                                                min={0}
                                                 value={p.off}
                                                 onChange={(e) => {
                                                     const val = parseFloat(e.target.value) || 0;
@@ -403,12 +439,13 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                             />
                                         </td>
                                         <td className="p-3 text-slate-500 font-mono">
-                                            {formatPrice(p.price * ((100 - p.off) / 100), storeSettings.currencyUnit)}
+                                            {formatPrice(p.price * ((100 - (Number(p.off) || 0)) / 100), storeSettings.currencyUnit)}
                                         </td>
                                         <td className="p-3">
                                             <input
                                                 type="number"
                                                 step="1000"
+                                                min={0}
                                                 value={p.price}
                                                 onChange={(e) => {
                                                     const val = parseFloat(e.target.value) || 0;
@@ -422,6 +459,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                             <input
                                                 type="number"
                                                 value={p.inventory}
+                                                min={0}
                                                 onChange={(e) => {
                                                     const val = parseInt(e.target.value) || 0;
                                                     handleProductInventoryChange(p.pk, val)
@@ -430,10 +468,33 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                             />
                                         </td>
                                         <td className="p-3">
+                                            <input
+                                                type="number"
+                                                value={p.weight}
+                                                min={0}
+                                                onChange={(e) => {
+                                                    const val = parseInt(e.target.value) || 0;
+                                                    handleProductWeightChange(p, val)
+                                                }}
+                                                className="w-16 bg-white text-center p-1.5 rounded-lg border border-slate-300 font-bold"
+                                            />
+                                        </td>
+                                        <td className="p-3">
+                                            <select className="p-1.5 bg-slate-200 rounded-xl " value={
+                                                p.product_type
+                                            } onChange={(e : ChangeEvent<HTMLSelectElement>) => {
+                                                handleProductTypeChange(p, e.currentTarget.value)
+                                            }}>
+                                                <option value="pomp">پمپ</option>
+                                                <option value="part">قطعه</option>
+
+                                            </select>
+                                        </td>
+                                        <td className="p-3">
                                             <button onClick={() => {
                                                 setModifingProductPK(p.pk)
                                                 setIsImageModalActive(true)
-                                            }} disabled={isUpdating} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
+                                            }} disabled={isUpdating ? true : false} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
                                                 <>
                                                     <Image size={20} />
                                                     <span>افزودن تصویر</span>
@@ -441,7 +502,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
 
                                             </button></td>
                                         <td className="p-3">
-                                            <button onClick={() => { setIsFeatureModalActive(true); setModifingProductPK(p.pk) }} disabled={isUpdating} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
+                                            <button onClick={() => { setIsFeatureModalActive(true); setModifingProductPK(p.pk) }} disabled={isUpdating ? true : false} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
                                                 <>
                                                     <Plus size={20} />
                                                     <span>افزودن ویژگی</span>
@@ -454,7 +515,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                                 setIsBrandModalActive(true);
                                                 setModifingProductPK(p.pk);
 
-                                            }} disabled={isUpdating} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
+                                            }} disabled={isUpdating ? true : false} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
                                                 <>
                                                     <Plus size={20} />
                                                     <span>افزودن برند</span>
@@ -466,7 +527,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                             <button onClick={() => {
                                                 setModifingProductPK(p.pk)
                                                 setIsCategoryModalActive(true)
-                                            }} disabled={isUpdating} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
+                                            }} disabled={isUpdating ? true : false} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
                                                 <>
                                                     <Layers size={20} />
                                                     <span>افزودن دسته بندی</span>
@@ -475,7 +536,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                             </button>
                                         </td>
                                         <td className="p-3 text-center flex items-center justify-center gap-1">
-                                           
+
                                             <button
                                                 onClick={() => setProducts(prev => [...prev].filter(ele => ele.pk !== p.pk))}
                                                 className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
@@ -483,7 +544,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
-                                            <button onClick={() => handleProductUpdate(p)} disabled={isUpdating} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
+                                            <button onClick={() => handleProductUpdate(p)} disabled={isUpdating ? true : false} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
                                                 {isUpdating ? <Spinner height={17.5} width={17.5} borderWidth={1.5} borderMainColor={"white"} borderTopColor={"green"} /> :
                                                     <>
                                                         <Check size={20} />
@@ -521,7 +582,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
 
                         </div>
                         <div className="w-full ">
-                            <SelectInput items={brands} labelProperty={"name"} selectedItem={brands.find(ele => ele.pk === selectedBrandPK)} onItemSelected={item => setSelectedBrandPK(item.pk)} />
+                            <SelectInput items={brands} labelProperty={"name"} selectedItem={brands.find(ele => ele.pk === selectedBrandPK)} onItemSelected={(item: Brand) => setSelectedBrandPK(item.pk)} />
                         </div>
                         {brandError && <p className="text-red-600">
                             {brandError}
@@ -534,10 +595,8 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                             }
                             setProducts(prev => [...prev].map(ele => {
                                 if (ele.pk === modifingProductPK) {
-                                    console.log(selectedBrandPK)
                                     ele.brand = brands.find(ele => ele.pk === selectedBrandPK)
                                 }
-                                console.log(ele.brand)
                                 return ele
                             }))
                             setIsBrandModalActive(false)
@@ -599,38 +658,32 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                             </div>
                             <div className="flex m-1   gap-3 flex-row ">
                                 <div onClick={() => {
-                                    const selectedPks = []
+                                    const selectedPks: (string | number)[] = []
                                     unSelectedCategoriesRef.current?.querySelectorAll("option").forEach(ele => {
                                         if (ele.selected) {
                                             selectedPks.push(ele.value)
                                         }
                                     });
                                     setCategoriesData(prev => [...prev].map(cat => {
-
-                                        if (!selectedPks.includes(cat.data?.pk?.toString())) {
-                                            return cat
+                                        if (selectedPks.includes(cat.data?.pk?.toString())) {
+                                            cat.selected = true
                                         }
-                                        cat.selected = true
                                         return cat
                                     }))
                                 }} className="w-7 -rotate-90  h-7 bg-slate-200 flex items-center justify-center rounded-full">
-                                    <ChevronLeft
-
-                                    />
+                                    <ChevronLeft />
                                 </div>
                                 <div onClick={() => {
-                                    const selectedPks = []
-                                    selectedCategories.current?.querySelectorAll("option").forEach(ele => {
+                                    const selectedPks: (number | string)[] = []
+                                    selectedCategoriesRef.current?.querySelectorAll("option").forEach(ele => {
                                         if (ele.selected) {
-                                            selectedPks.push(ele.value)
+                                            selectedPks.push(ele.value.toString())
                                         }
                                     });
                                     setCategoriesData(prev => [...prev].map(cat => {
-
                                         if (selectedPks.includes(cat.data?.pk?.toString())) {
-                                            return cat
+                                            cat.selected = false
                                         }
-                                        cat.selected = false
                                         return cat
                                     }))
                                 }} className="w-7 h-7 -rotate-90  bg-slate-200 flex items-center justify-center rounded-full">
@@ -671,10 +724,9 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                 return;
                             }
                             setProducts(prev => [...prev].map(ele => {
-                                console.log(modifingProductPK, ele.name, ele.pk)
+
                                 if (ele.pk === modifingProductPK) {
                                     ele.categories = selectedCategories.map(ele => ele.data)
-                                    console.log(ele.categories)
                                 }
                                 return ele
                             }));
@@ -787,7 +839,6 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                             setProducts(prev => [...prev].map(ele => {
                                 if (ele.pk === modifingProductPK) {
                                     ele.images = imagePayloads
-                                    console.log(ele.images, "submited images")
                                 }
                                 return ele
                             }))
@@ -865,7 +916,6 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                             setProducts(prev => [...prev].map(ele => {
                                 if (ele.pk === modifingProductPK) {
                                     ele.features = features
-                                    console.log(ele.features, "submited features")
                                 }
                                 return ele
                             }))
@@ -933,7 +983,6 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                 <span className="text-sm">
                                     وارد کردن
                                 </span>
-
                             </div>
                         </div>
                     </div>

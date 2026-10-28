@@ -1,19 +1,21 @@
 import { Image, X } from "lucide-react";
-import React, { FormEvent, SetStateAction, useRef, useState } from "react";
+import React, { FormEvent, SetStateAction, SubmitEvent, useContext, useRef, useState } from "react";
 import SelectInput from "./SelectInput";
 import { image, img } from "motion/react-client";
 import API from "@/api/api";
 import Spinner from "./Spinner";
 import { CustomerOrder, OrderItem, ReturnRequest } from "../types";
+import { MainContext, MainContextValue } from "../contexts/MainContext";
 
 
 
 interface ReturnModalRequestModalProps {
-    itemID: number | string;
-    orderID: number | string;
+    itemID: number | string | null;
+    orderID: number | string | null;
     onClose: () => void;
-    setOrders: React.Dispatch<SetStateAction<CustomerOrder>>;
-    returnRequest: ReturnRequest | null
+    setOrders: React.Dispatch<SetStateAction<CustomerOrder[]>>;
+    returnRequest: ReturnRequest | null;
+
 }
 
 interface ReasonInput {
@@ -30,14 +32,20 @@ export const ReturnItemRequestModal: React.FC<ReturnModalRequestModalProps> = ({
     setOrders,
     returnRequest
 }) => {
-    console.log(returnRequest , "return request")
-    const processFile = (file) => {
+    const mainContextValue = useContext<MainContextValue>(MainContext)
+    if (!itemID || !orderID) {
+        return;
+    }
+    const processFile = (file: File | null): Promise<string | ArrayBuffer> | null => {
+        if (!file) {
+            return null
+        }
         return new Promise((resolve, reject) => {
             try {
 
                 const reader = new FileReader()
                 reader.addEventListener("load", (e) => {
-                    return resolve(e.target?.result)
+                    return resolve(e.target?.result || "")
                 });
                 reader.readAsDataURL(file)
             } catch (e) {
@@ -46,13 +54,15 @@ export const ReturnItemRequestModal: React.FC<ReturnModalRequestModalProps> = ({
         })
     }
 
-    const handleImageInput = async (e: React.InputEvent) => {
+    const handleImageInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
         try {
-            const file = e.currentTarget.files[0]
-            const result = await processFile(file)
-            setImageURL(result)
+            const files = (e.target as HTMLInputElement)?.files
+            const result = await processFile(files && files[0])
+            if (result) {
+                setImageURL(result)
+            }
         } catch (e) {
-            console.log(e)
+            mainContextValue?.onError("خطا در پردازش تصویر")
         }
     }
 
@@ -106,14 +116,14 @@ export const ReturnItemRequestModal: React.FC<ReturnModalRequestModalProps> = ({
     const [reasonError, setReasonError] = useState("")
     const [description, setDescription] = useState(returnRequest?.description || "")
     const [descriptionError, setDescriptionError] = useState("")
-    const imageInputRef = useRef<React.ReactElement | null>(null)
-    const [imageURL, setImageURL] = useState<string>(returnRequest?.reason_prove_file || "")
+    const imageInputRef = useRef<HTMLInputElement>(null)
+    const [imageURL, setImageURL] = useState<string | ArrayBuffer>(returnRequest?.reason_prove_file || "")
     const [isSending, setIsSending] = useState<boolean>(false)
     const [imageError, setImageError] = useState("")
 
 
 
-    const handleFormSubmit = async (e: SubmitEvent) => {
+    const handleFormSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
         try {
             e.preventDefault()
             const reason = reasons.find(ele => ele.selected)
@@ -126,22 +136,22 @@ export const ReturnItemRequestModal: React.FC<ReturnModalRequestModalProps> = ({
                 return;
             }
             const maxSize = 1024 * 1024
-            const formData = new FormData(e.currentTarget)
-            const imageSize = formData.get("reason_prove_file")?.size
-
+            const formData = new FormData(e.target)
+            const image = formData.get("reason_prove_file") as File
+            const imageSize = image.size
             if (imageSize >= maxSize) {
                 setImageError("اندازه عکس بیشتر از حد مجاز")
             }
             formData.append("reason", reason.dbName)
-            formData.append("order_id", orderID);
-            formData.append("item_id", itemID);
+            formData.append("order_id", String(orderID));
+            formData.append("item_id", String(itemID));
             setIsSending(true)
-            
+
             const { data, status } = await (returnRequest ? API.put(`orders/return-request-update/${returnRequest.pk}/`, formData) : API.post("orders/return-request-create/", formData))
             if (status === 200) {
                 setOrders(prev => [...prev].map(order => {
                     if (order.pk === orderID) {
-                        order.items = [...order.items].map(item => {
+                        order.items = order.items && [...order.items].map(item => {
                             if (item.pk === itemID) {
                                 item.return_request = data.result
                             }
@@ -152,12 +162,11 @@ export const ReturnItemRequestModal: React.FC<ReturnModalRequestModalProps> = ({
                 }));
                 onClose()
             } else {
-                const e = data.error_des || data.detail || "error "
-                console.log(e)
+                mainContextValue?.onError("خطا!")
             }
             setIsSending(false)
         } catch (e) {
-            console.log(e)
+            mainContextValue?.onError("خطا!")
             setIsSending(false)
 
         }
@@ -235,7 +244,7 @@ export const ReturnItemRequestModal: React.FC<ReturnModalRequestModalProps> = ({
                             </div>
                             {imageURL &&
                                 <div className="h-15 my-1.5">
-                                    <img src={imageURL} width={300} height={300} />
+                                    <img src={imageURL as string} width={300} height={300} />
 
                                 </div>
                             }

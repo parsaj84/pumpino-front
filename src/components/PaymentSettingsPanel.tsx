@@ -6,11 +6,8 @@ import {
   Save, 
   CheckCircle2, 
   Globe, 
-  Key, 
-  ShieldCheck, 
   Lock, 
   Power,
-  DollarSign,
   Check
 } from 'lucide-react';
 import { StoreSettings, PaymentSettings, PaymentGatewayItem } from '../types';

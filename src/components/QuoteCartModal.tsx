@@ -1,44 +1,32 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { ChangeEvent, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   ShoppingBag,
   Trash2,
-  Plus,
-  Minus,
-  FileSpreadsheet,
-  Printer,
-  MessageSquare,
-  Share2,
-  User,
-  Phone,
-  MapPin,
-  Calendar,
-  CheckCircle,
-  X,
-  FileText,
   Send,
   Truck,
   CheckCircle2,
-  Building2
+  User,
 } from 'lucide-react';
-import { QuoteItem, CustomerInfo, StoreSettings, CustomerProfile, CustomerOrder, OrderItem } from '../types';
-import { formatPrice, toPersianDigits, exportQuoteToExcel } from '../utils/formatters';
+import {  StoreSettings, UserData, FormConfig, CartData, Province, Freight, City, keyOffFormConfig } from '../types';
+import { formatPrice, toPersianDigits } from '../utils/formatters';
 import CartItemTableRow from './CartItemTableRow';
 import API from '@/api/api';
 import Spinner from './Spinner';
 import fetchData from '../utils/fetchData';
 import SelectInput from './SelectInput';
-import jsPDF from 'jspdf';
+import { MainContext, MainContextValue } from '../contexts/MainContext';
+
 
 
 interface QuoteCartModalProps {
-  cartData: QuoteItem[];
-  setCartData: React.Dispatch<React.SetStateAction<QuoteItem[]>>;
+  cartData: CartData | null;
+  setCartData: React.Dispatch<React.SetStateAction<CartData | null>>;
   storeSettings: StoreSettings;
-  customerProfile: CustomerProfile | null;
+  customerProfile: UserData | null;
   onOpenAuthModal: () => void;
-  onSubmitOrder: (order: CustomerOrder) => void;
-  onClose: () => void;
-  onOpenPrintInvoice: (customer: CustomerInfo) => void;
+  // onSubmitOrder: (order: CustomerOrder) => void;
+  // onClose: () => void;
+  // onOpenPrintInvoice: (customer: CustomerInfo) => void;
 }
 
 export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
@@ -46,13 +34,9 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
   setCartData,
   storeSettings,
   customerProfile,
-  setCustomerProfile,
   onOpenAuthModal,
-  onSubmitOrder,
-  onClose,
-  onOpenPrintInvoice
 }) => {
-
+  const mainCotextValue = useContext<MainContextValue>(MainContext)
 
   const [shippingLocation, setShippingLocation] = useState<'tehran' | 'other_cities'>('tehran');
   const [shippingMethod, setShippingMethod] = useState<'MOTORCYCLE_COURIER' | 'INPERSON_PICKUP' | 'PICK_UP_FROM_FREIGHT_TERMINAL'>('MOTORCYCLE_COURIER');
@@ -68,11 +52,11 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
 
   const [isOrderSubmittedSuccess, setIsOrderSubmittedSuccess] = useState(false);
   const [isClearingCart, setIsClearingCart] = useState(false)
-  const [locatiosData, setLocationsData] = useState([])
+  const [locatiosData, setLocationsData] = useState<(Province & { selected: boolean })[]>([])
   const [isLoadingLocations, setIsLoadingLocations] = useState(false)
-  const [freights, setFreights] = useState([])
+  const [freights, setFreights] = useState<Freight[]>([])
   const [isLoadingFreghits, setIsLoadingFreights] = useState(false)
-  const [selectedFreightId, setSelectedFreightId] = useState(null)
+  const [selectedFreightId, setSelectedFreightId] = useState<number | string | null>(null)
   const [selectedProvinceId, setSelectedProvinceId] = useState(customerProfile?.data?.province?.pk)
   const [selectedCityId, setSelectedCityId] = useState(customerProfile?.data?.city?.pk)
   const [isSending, setIsSending] = useState(false)
@@ -80,7 +64,7 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
   const [cityError, setCityError] = useState("")
   const [freightError, setFreightError] = useState("")
 
-  const [formConfig, setFormConfig] = useState([
+  const [formConfig, setFormConfig] = useState<FormConfig[]>([
     { code: "fname", isNumeric: false, label: "نام خریدار", required: true, regex: null, value: customerProfile?.data?.fname, error: "", help_placeholder: "نام" },
     { code: "lname", isNumeric: false, label: "نام خانوادگی خریدار", required: true, regex: null, value: customerProfile?.data?.lname, error: "", help_placeholder: "نام خانوادگی" },
     { code: "phone", isNumeric: true, label: "شماره تلفن خریدار", required: true, regex: /^(?:\+98|98|0)?9[0-9]{9}$/, value: customerProfile?.data?.phone, error: "", help_placeholder: "09100000000" },
@@ -88,7 +72,7 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
 
   ])
 
-  const validateAndSetConf = useCallback((conf, event, ele) => {
+  const validateAndSetConf = useCallback((conf: FormConfig, event: ChangeEvent<HTMLInputElement>, ele: FormConfig) => {
     if (conf.code !== ele.code) {
       return conf
     }
@@ -99,7 +83,7 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
       value = event.target.value.replace(/[^0-9]/g, '')
 
     }
-    console.log(value)
+
     if (!value && conf.required) {
       conf.error = "مقدار این فیلد اجباری است"
       conf.value = value
@@ -123,40 +107,24 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
         if (status === 200 && data.success) {
           setCartData({ post_price: 0, total_items_price: 0, cart_items: [] })
         } else {
-          const e = "error"
-          console.log(e)
+          mainCotextValue?.onError("خطا در فرایند پاکسازی سبد خرید")
         }
         setIsClearingCart(false)
       }
     }
     catch (e) {
-      console.log(e)
+      mainCotextValue?.onError("خطا در فرایند پاکسازی سبد خرید")
+
       setIsClearingCart(false)
 
     }
   };
-  async function handleGenPDF() {
-    console.log("use playwhrite + chtomium in backend")
-  }
+
   // Financial calculations
-  const finalTotalToman = cartData?.total_items_price + cartData?.post_price;
+  const finalTotalToman = (Number(cartData?.total_items_price) + Number(cartData?.post_price)) || 0;
 
 
 
-  const generateShareText = () => {
-    let text = `📋 *پیش‌فاکتور و استعلام قیمت پمپ آب*
-فروشگاه: ${storeSettings.storeName}
-
------------------------------\n`;
-
-    cartData?.cart_items?.forEach((item, idx) => {
-      text += `${idx + 1}. *${item.product.title}*\n   تعداد: ${item.quantity} عدد | قیمت واحد: ${formatPrice(item.product.price * ((100 - item.product.off) / 100), storeSettings.currencyUnit)}\n`;
-    });
-
-    text += `-----------------------------\n💰 *مبلغ کل قابل پرداخت:* ${formatPrice(finalTotalToman, storeSettings.currencyUnit)}
-📞 پشتیبانی و فروش: ${storeSettings.mobileNumber}`;
-    return text;
-  };
 
 
 
@@ -166,36 +134,41 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
       const { data, status } = response
       if (data && status === 200) {
         setLocationsData(data)
-
         setIsLoadingLocations(false)
       } else {
-        const e = "ارور"
-        console.log(e)
+        mainCotextValue?.onError("خطا در بارگذاری اماکن!")
       }
-    }, () => { setIsLoadingLocations(true) });
+    }, () => { setIsLoadingLocations(true) }, () => mainCotextValue?.onError("خطا در بارگذاری اماکن"));
     fetchData("orders/freight-list/", (response) => {
       if (response.data, response.status === 200) {
         setFreights(response.data);
         setIsLoadingFreights(false);
       }
-    }, () => setIsLoadingFreights(true));
+    }, () => setIsLoadingFreights(true), () => mainCotextValue?.onError("خطا در بارگذاری باربری"));
   }, [])
 
 
-  const provinces = locatiosData?.map((ele, idx) => {
+  const provinces = useMemo(() => {
+    return locatiosData?.map((ele, idx) => {
 
-    if (selectedProvinceId) {
-      ele.selected = selectedProvinceId === ele.pk
-    }
-    return ele
-  })
+      if (selectedProvinceId) {
+        ele.selected = selectedProvinceId === ele?.pk
+      }
+      return ele
+    })
+  }, [locatiosData, selectedProvinceId])
+
   const selectedProvince = provinces.find(ele => ele.selected)
-  const cities = selectedProvince?.cities?.map((ele, idx) => {
-    if (selectedCityId && selectedProvince?.cities.find(ele => ele.pk === selectedCityId)) {
-      ele.selected = ele.pk === selectedCityId
-    }
-    return ele
-  })
+
+  const cities = useMemo<City[]>(() => {
+
+    return selectedProvince?.cities?.map((ele, idx) => {
+      if (selectedCityId && selectedProvince?.cities.find(ele => ele.pk === selectedCityId)) {
+        ele.selected = ele.pk === selectedCityId
+      }
+      return ele
+    }) || []
+  }, [selectedProvince, selectedCityId])
 
   const filteredFreights = freights.filter((ele) => {
     return ele.province === provinces.find(ele => ele.selected)?.pk && cities.find(ele => ele.selected)?.pk === ele.city
@@ -210,20 +183,23 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
   });
 
 
+
   const handleSubmitOrderToAdmin = async () => {
     try {
-      if (!customerProfile.isAuthenticated) {
+      if (!customerProfile?.isAuthenticated) {
         onOpenAuthModal()
         return;
       }
-      const formData = {}
+
+      const formData: Record<keyOffFormConfig | string, string | number | null | undefined> = {}
       let isValid = true
       const compiledFormConfig = formConfig.map(ele => {
         if (!ele.value && ele.required) {
           isValid = false
           ele.error = "مقدار این فیلد اجباری است!"
+          return ele;
         }
-        if (ele.regex && !ele.regex.test(ele.value)) {
+        if (ele.regex && !ele.regex.test(String(ele.value))) {
           isValid = false
           ele.error = `لطفا یک مقدار معتبر برای ${ele.label} وارد کنید!`
         }
@@ -261,19 +237,16 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
         setIsSending(true)
         const { status, data } = await API.post("orders/create-order/", formData)
         if (status === 200) {
-          console.log(data)
           setCartData({ post_price: 0, total_items_price: 0, cart_items: [] })
         } else if (status === 401) {
-          const e = "ارور احراز هویت"
-          console.log(e)
+          mainCotextValue?.onError("کاربر نامعتبر!")
         } else {
-          const e = "ارور دادهت"
-          console.log(e)
+          mainCotextValue?.onError(status === 400 ? "لطفا داده هارا درست وارد کنید" : "خطا غیرمنتظره")
         }
         setIsSending(false)
       }
     } catch (e) {
-      console.log(e)
+      mainCotextValue?.onError("خطا غیرمنتظره!")
       setIsSending(false)
     }
 
@@ -290,12 +263,12 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
           <div>
             <h2 className="text-lg font-bold">سبد خرید</h2>
             <p className="text-xs text-slate-400">
-              تعداد کالاهای انتخابی: {toPersianDigits(cartData?.cart_items?.length)} کالا
+              تعداد کالاهای انتخابی: {toPersianDigits(cartData?.cart_items?.length || 0)} کالا
             </p>
           </div>
         </div>
 
-        {cartData?.cart_items?.length > 0 && (
+        {cartData && cartData?.cart_items?.length > 0 && (
           <button
             disabled={isClearingCart}
 
@@ -330,10 +303,10 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
                 <span>اطلاعات خریدار جهت درج روی پیش‌فاکتور:</span>
               </h3>
 
-              {customerProfile.isAuthenticated ? (
+              {customerProfile?.isAuthenticated ? (
                 <div className="flex items-center gap-1.5 bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-1 rounded-xl text-xs font-bold">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>خریدار تاییدشده: {customerProfile?.data.name} ({toPersianDigits(customerProfile?.data?.phone)})</span>
+                  <span>خریدار تاییدشده: {(customerProfile?.data?.fname || customerProfile?.data?.lname) ? (customerProfile?.data?.fname || "") + " " + (customerProfile?.data?.lname || "") : ""} ({toPersianDigits(customerProfile?.data?.phone || "") || "ثبت نشده"})</span>
                 </div>
               ) : (
                 <button
@@ -354,7 +327,7 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={ele.value}
+                    value={String(ele.value)}
                     onChange={(e) => setFormConfig(prev => prev.map(conf => validateAndSetConf(conf, e, ele)))}
                     placeholder={ele.help_placeholder}
                     className={`w-full bg-white text-xs font-bold p-2.5 rounded-xl border ${ele.error ? "border-red-300" : "border-slate-300"} focus:outline-none focus:ring-2 ${ele.error ? "focus:ring-red-500" : "focus:ring-sky-500"}`}

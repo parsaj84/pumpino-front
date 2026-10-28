@@ -5,11 +5,9 @@ import {
   Send, 
   Save, 
   CheckCircle2, 
-  AlertCircle, 
   Sparkles, 
   HelpCircle, 
   ShieldCheck, 
-  MessageSquare,
   Bell,
   Check,
   Radio

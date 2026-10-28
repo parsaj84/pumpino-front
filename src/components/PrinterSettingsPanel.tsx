@@ -7,12 +7,7 @@ import {
   Volume2, 
   VolumeX, 
   CheckCircle2, 
-  Wifi, 
-  Usb, 
   Monitor, 
-  FileText, 
-  Sparkles,
-  RefreshCw,
   Power,
   ShieldCheck,
   Check

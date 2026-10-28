@@ -1,12 +1,8 @@
-import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { formatPrice } from "../utils/formatters";
+import { ChangeEvent, Dispatch, SetStateAction, startTransition, SubmitEvent, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
-
   Save,
   Plus,
-  Trash2,
   Upload,
-  CheckCircle2,
   X,
   Wrench,
   Package,
@@ -17,11 +13,33 @@ import {
 import SelectInput from "./SelectInput";
 import API from "@/api/api";
 import Spinner from "./Spinner";
+import { Brand, Category, FormConfig, OrderItem, Product, ProductFeature, ProductFile } from "../types";
+import { MainContext, MainContextValue } from "../contexts/MainContext";
 
-export default function ProductSubmitAdminModal({ products, categories, brands, setProducts, setIsProductModalOpen, setIsQuickCategoryModalOpen, setEditingProduct, setIsQuickBrandModalOpen, editingProduct }) {
-  const imagePayloads = useRef([])
-  console.log(editingProduct)
-  const [formConfig, setFormConfig] = useState([
+interface ProdcutSubmitAdminModal {
+  products: Product[];
+  categories: Category[];
+  brands: (Brand & { selected: boolean })[];
+  setProducts: Dispatch<SetStateAction<Product[]>>;
+  setIsProductModalOpen: Dispatch<SetStateAction<boolean>>;
+  setIsQuickCategoryModalOpen: Dispatch<SetStateAction<boolean>>;
+  setEditingProduct: Dispatch<SetStateAction<Product>>;
+  setIsQuickBrandModalOpen: Dispatch<SetStateAction<boolean>>;
+  editingProduct: Product
+}
+
+
+interface ProductImagePayload {
+  pk?: string | number | null,
+  url?: string | ArrayBuffer | null,
+  name?: string,
+  isCompiledFromEditingProduct: boolean
+}
+
+export default function ProductSubmitAdminModal({ products, categories, brands, setProducts, setIsProductModalOpen, setIsQuickCategoryModalOpen, setEditingProduct, setIsQuickBrandModalOpen, editingProduct }: ProdcutSubmitAdminModal) {
+  const mainContextValue = useContext<MainContextValue>(MainContext)
+  const imagePayloads = useRef<File[]>([])
+  const [formConfig, setFormConfig] = useState<FormConfig[]>([
     { code: "title", required: true, regex: null, value: editingProduct.title || "", label: "عنوان محصول", isNumeric: false, onInput: null, error: "" },
     { code: "technical_model", required: true, regex: null, value: editingProduct.technical_model || "", label: "مدل فنی / پارت نامبر", isNumeric: false, onInput: null, error: "" },
     { code: "price", required: true, regex: null, value: editingProduct.price || "", label: "قیمت پایه فروش (تومان)", isNumeric: true, error: "" },
@@ -55,7 +73,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
   const [description, setDescription] = useState(editingProduct.description || "")
   const [descriptionError, setDescriptionError] = useState("")
   const [isFeatureAddModalOpen, setIsFeatureAddModalOpen] = useState(false)
-  const [images, setImages] = useState(compileImagesFromEditingProduct)
+  const [images, setImages] = useState<{ pk?: null | number | string; isCompiledFromEditingProduct: boolean, url: string | ArrayBuffer, name: string }[]>(compileImagesFromEditingProduct)
   const [feature, setFeature] = useState({ feature_name: "", feature_value: "" })
   const [featureError, setFeatureError] = useState("")
   const [features, setFeatures] = useState(compileFeatures)
@@ -67,42 +85,56 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
   const [selectedCategoriesSearchQuery, setSelectedCategoriedSearchQuery] = useState("")
   const deferedSelectedCategoriesSearchQuery = useDeferredValue(selectedCategoriesSearchQuery)
   const [brandError, setBrandError] = useState("")
-  const [deletingFilePK, setDeletingFilePK] = useState(null)
-  const [deletingFeaturePK, setDeletingFeaturePK] = useState(null)
+  const [deletingFilePK, setDeletingFilePK] = useState<number | string | null>(null)
+  const [deletingFeaturePK, setDeletingFeaturePK] = useState<null | string | number>(null)
+
+  const compiledBrands = useMemo(() => {
+    return brands.map(ele => {
+      ele.selected = ele.pk === brandId
+
+      return ele
+    })
+  }, [brandId])
 
 
-  const handleEditingProductFeatureDelete = async (feature) => {
+  const handleEditingProductFeatureDelete = async (feature: ProductFeature) => {
     try {
+      if (!feature?.pk) {
+        mainContextValue?.onError("خطا!لطفا صفحه را رفرش کنید و دوباره امتحان کنید!")
+        return;
+      }
       setDeletingFeaturePK(feature?.pk)
       const { data, status } = await API.delete("products/prodcut-feature-delete/" + feature?.pk?.toString() + "/")
       if (status === 200) {
         setFeatures(prev => [...prev].filter(ele => (!ele.isCompiledFromEditingProduct && ele.pk !== feature.pk)))
         startTransition(() => {
           setProducts(prev => [...prev].map(p => {
-            console.log(p, editingProduct, "testing")
             if (p.pk === editingProduct.pk) {
-              p.features = [...p.features].filter(f => feature.pk !== f.pk)
+              p.features = p.features && [...p.features].filter(f => feature.pk !== f.pk)
             }
             return p
           }));
         })
       } else {
-        const e = data.error_des || data.detail || "خطا"
-        console.log(e)
+        mainContextValue?.onError("خطا در فرایند پاک کردن ویژگی ")
       }
       setDeletingFeaturePK(null)
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطا غیرمنتظره!")
       setDeletingFeaturePK(null)
 
     }
   }
 
 
-  const handleEditingProductFileDelete = async (file) => {
+  const handleEditingProductFileDelete = async (file: ProductImagePayload) => {
     try {
-      setDeletingFilePK(file.pk)
-      const { data, status } = await API.delete("products/product-file-delete/" + file.pk.toString() + "/")
+      if (!file || file?.pk) {
+        mainContextValue?.onError("خطا در پردازش")
+        return;
+      }
+      setDeletingFilePK(file?.pk || null)
+      const { data, status } = await API.delete("products/product-file-delete/" + file.pk?.toString() + "/")
       if (status === 200) {
         const newImages = images.filter(ele => {
 
@@ -113,31 +145,24 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
         })
         setImages(newImages)
         const newProducts = products.map(p => {
-          console.log(p, "prodcut", p.files, p.pk, "editing product", editingProduct.pk)
           if (p.pk === editingProduct.pk) {
 
-            p.files = [...p.files].filter(image => {
-              console.log(image.pk, file.pk, "image is moz")
+            p.files = p.files && [...p.files].filter(image => {
               return image.pk.toString() !== file.pk.toString()
             })
           }
           return p
         }
         )
-
-        console.log(newProducts, "new products as hell", editingProduct.pk)
         setProducts(newProducts)
         setEditingProduct(prev => ({ ...prev, files: [] }))
-
-        console.log(editingProduct.files, "after changes")
-
       } else {
         const e = data.error_des || data.detail || "error"
-        console.log(e)
+        mainContextValue?.onError(e)
       }
       setDeletingFilePK(null)
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطایی رخ داد")
       setDeletingFilePK(null)
 
     }
@@ -146,19 +171,19 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
   const compileCategories = useCallback(() => {
     if (editingProduct?.categories?.length) {
       const ids = editingProduct.categories?.map(ele => ele.pk)
-      return categories.map(ele => ({ selected: ids.find(id => ele.pk === id), data: ele }))
+      return categories.map(ele => ({ selected: ids.find(id => ele.pk === id) ? true : false, data: ele }))
     }
     return categories?.map(ele => ({ selected: false, data: ele }))
   }, [categories])
 
-  const [categoriesData, setCategoriesData] = useState(compileCategories)
+  const [categoriesData, setCategoriesData] = useState<{ selected: boolean, data: Category }[]>(compileCategories)
 
   useEffect(() => {
     setCategoriesData(compileCategories)
-  }, [categories])
+  }, [])
 
-  const selectedCategoriesRef = useRef(null)
-  const unSelectedCategoriesRef = useRef(null)
+  const selectedCategoriesRef = useRef<HTMLSelectElement | null>(null)
+  const unSelectedCategoriesRef = useRef<HTMLSelectElement | null>(null)
 
 
   const selectedCategories = categoriesData.filter(ele => {
@@ -184,20 +209,26 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
 
 
 
-  const imageInputHandler = async (file) => {
+  const imageInputHandler = async (file: File | null) => {
     try {
+      if (!file) {
+        mainContextValue?.onError("خطا در فرایند پردازش تصویر");
+        return;
+      }
       const fileReader = new FileReader()
+
       fileReader.addEventListener("load", (e) => {
-        setImages(prev => [...prev, { url: e.target?.result, name: file.name }])
+        setImages(prev => [...prev, { isCompiledFromEditingProduct: false, pk: null, url: e.target?.result || "", name: file.name }])
         imagePayloads.current = [...imagePayloads.current, file]
       })
       fileReader.readAsDataURL(file)
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطا در فرایند پردازش تصویر");
+
     }
   }
 
-  const handleSaveProductForm = async (e) => {
+  const handleSaveProductForm = async (e: SubmitEvent) => {
     try {
       e.preventDefault()
       let isValid = true
@@ -215,7 +246,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
           ele.error = "مقدار این فیلد اجباری است"
           isValid = false
         }
-        if (ele.regex && !ele.regex.test(ele.value)) {
+        if (ele.regex && !ele.regex.test(ele.value as string)) {
           ele.error = `لطفا یک مقدار معتبر برای ${ele.label} وارد کنید`
           isValid = false
         }
@@ -226,7 +257,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
         isValid = false
         setBrandError("لطفا برند را وارد کنید")
       }
-      const formData = new FormData(e.currentTarget)
+      const formData = new FormData(e.target)
       imagePayloads.current.forEach(file => {
 
         formData.append(file.name, file)
@@ -256,10 +287,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
             setProducts(prev => [...prev, data.result])
           }
         } else {
-          const e = data.error_des || data.detail || "خطایی رخ داده است"
-          console.log(
-            e
-          )
+          mainContextValue?.onError("خطا در دریافت اطلاعات از سرور")
         }
       }
     } catch (e) {
@@ -303,7 +331,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
                   type="text"
 
                   name={conf.code}
-                  value={conf.value}
+                  value={conf.value || ""}
                   onChange={(e) => setFormConfig(prev => [...prev].map(ele => {
                     if (ele.code !== conf.code) {
                       return ele;
@@ -375,18 +403,18 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
               </div>
               <div className="flex m-1   gap-3 flex-row md:flex-col">
                 <div onClick={() => {
-                  const selectedPks = []
+                  const selectedPks: (number | string)[] = []
                   unSelectedCategoriesRef.current?.querySelectorAll("option").forEach(ele => {
                     if (ele.selected) {
-                      selectedPks.push(ele.value)
+                      selectedPks.push(ele.value.toString())
                     }
                   });
                   setCategoriesData(prev => [...prev].map(cat => {
 
-                    if (!selectedPks.includes(cat.data?.pk?.toString())) {
+                    if (selectedPks.includes(cat.data?.pk?.toString())) {
                       return cat
                     }
-                    cat.selected = true
+
                     return cat
                   }))
                 }} className="w-7 -rotate-90 md:rotate-0 h-7 bg-slate-200 flex items-center justify-center rounded-full">
@@ -395,18 +423,16 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
                   />
                 </div>
                 <div onClick={() => {
-                  const selectedPks = []
-                  selectedCategories.current?.querySelectorAll("option").forEach(ele => {
+                  const selectedPks: (string | number)[] = []
+                  selectedCategoriesRef.current?.querySelectorAll("option").forEach(ele => {
                     if (ele.selected) {
-                      selectedPks.push(ele.value)
+                      selectedPks.push(ele.value.toString())
                     }
                   });
                   setCategoriesData(prev => [...prev].map(cat => {
-
                     if (selectedPks.includes(cat.data?.pk?.toString())) {
-                      return cat
+                      cat.selected = false
                     }
-                    cat.selected = false
                     return cat
                   }))
                 }} className="w-7 h-7 -rotate-90 md:rotate-0 bg-slate-200 flex items-center justify-center rounded-full">
@@ -450,7 +476,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
                   <span>+ برند جدید</span>
                 </button>
               </div>
-              <SelectInput items={brands} isLoadingItems={false} labelProperty={"name"} onItemSelected={item => setBrandId(item.pk)} selectedItem={brands.find(ele => ele.pk === brandId)} />
+              <SelectInput items={compiledBrands} isLoadingItems={false} labelProperty={"name"} onItemSelected={item => setBrandId(item.pk)} selectedItem={brands.find(ele => ele.pk === brandId)} />
               {brandError &&
                 <p className="text-sm text-red-600 my-1">
                   {brandError}
@@ -475,9 +501,11 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={(e) => {
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
                         e.preventDefault()
-                        imageInputHandler(e.target.files[0])
+                        const files = e.target.files
+                        const file = (files && files.length > 0) ? files[0] : null
+                        imageInputHandler(file)
                       }}
                       className="hidden"
                     />
@@ -491,7 +519,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
                 {images.map((image, index) => (
                   <div >
                     <div className="w-12 h-12 z-30 relative rounded-xl border border-slate-300 overflow-hidden bg-white shrink-0  group shadow-xs">
-                      <button disabled={deletingFilePK && deletingFilePK === image.pk} onClick={() => {
+                      <button disabled={(deletingFilePK && deletingFilePK === image.pk) ? true : false} onClick={() => {
                         if (image.isCompiledFromEditingProduct && image.pk) {
                           handleEditingProductFileDelete(image);
                           return;
@@ -504,7 +532,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
                         }
                       </button>
                       <img
-                        src={image.url}
+                        src={image.url as string}
 
                         alt="پیش‌نمایش"
                         className="w-full z-10 h-full object-cover"
@@ -640,7 +668,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
                   setFeatureError("لطفا مقادیر را پر کنید")
                   return;
                 }
-                setFeatures(prev => [...prev, feature])
+                setFeatures(prev => [...prev.map(ele => ({ ...ele, isCompiledFromEditingProduct: false })), { ...feature, isCompiledFromEditingProduct: false }])
                 setFeature({ feature_name: "", feature_value: "" })
                 setIsFeatureAddModalOpen(false)
               }} className="bg-blue-700 flex items-center justify-between p-1.5 rounded-xl hover:bg-green-700 font-semibold text-white transition-colors  cursor-pointer">

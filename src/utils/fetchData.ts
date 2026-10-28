@@ -1,7 +1,8 @@
+import { AxiosResponse } from "axios"
 import API from "./../../api/api" 
 
 
-export default async function fetchData(url: string, callBack: Function, beforeSend : (null | Function) = null) {
+export default async function fetchData(url: string, callBack: (response : AxiosResponse) => void, beforeSend : (null | Function) = null, onError : (() => void) | null = null) {
     try {
       if (beforeSend) {
         beforeSend()
@@ -10,5 +11,8 @@ export default async function fetchData(url: string, callBack: Function, beforeS
       callBack(response)
     } catch (e) {
       console.log(e)
+      if (onError) {
+        onError()
+      }
     }
   }

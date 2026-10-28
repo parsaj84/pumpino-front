@@ -1,12 +1,22 @@
-import { useCallback, useState } from "react";
+import { useCallback, useContext, useState } from "react";
 import { toPersianDigits } from "../utils/formatters";
 import { CheckCircle2, Percent } from "lucide-react";
 import API from "@/api/api";
 import Spinner from "./Spinner";
-import { number } from "motion";
+import { Brand, Category } from "../types";
+import { MainContext } from "../contexts/MainContext";
 
-export default function BulkPercent({ brands, categories }) {
+interface BulkPercentProps {
+    brands: Brand[],
+    categories: Category[]
+}
+
+
+export default function BulkPercent({ brands, categories }: BulkPercentProps) {
     type UpdateType = "category" | "brand" | ""
+    
+    const mainContextValue = useContext(MainContext)
+
     const [successMsg, setSuccessMsg] = useState("")
     const [categoryBulkPercentVal, setCategoryBulkPercentVal] = useState(0)
     const [brandBulkPercentVal, setBrandBulkPercentVal] = useState(0)
@@ -23,8 +33,8 @@ export default function BulkPercent({ brands, categories }) {
 
 
         const searchParams = new URLSearchParams({
-            category_id: selectedCategoryPK,
-            brand_id: selectedBrandPK,
+            category_id: selectedCategoryPK.toString(),
+            brand_id: selectedBrandPK.toString(),
             update_type: updateType
         })
         return "?" + searchParams.toString()
@@ -50,11 +60,12 @@ export default function BulkPercent({ brands, categories }) {
                 setTimeout(() => setSuccessMsg(""), 1500)
             } else {
                 const e = data.error_des || data.detail || "خطا"
-                console.log(e)
+                mainContextValue?.onError(typeof e === "object" ? mainContextValue.onError(compileErrorOBJToArray(e)?.join(",")) : e)
+
             }
             setIsUpdating("")
         } catch (e) {
-            console.log(e)
+            mainContextValue?.onError("")
             setIsUpdating("")
         }
     }
@@ -117,7 +128,7 @@ export default function BulkPercent({ brands, categories }) {
                         <div className="pt-2 flex items-center justify-center gap-3">
                             <button
                                 disabled={isUpdating ? true : false}
-                                onClick={() => handleApplyBulkPercent(brandBulkPercentVal, "brand", selectedBrandPK)}
+                                onClick={() => handleApplyBulkPercent(brandBulkPercentVal, "brand", selectedBrandPK.toString())}
                                 className="flex-1 flex justify-center items-center py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer shadow"
                             >
                                 {isUpdating === "brand" ?
@@ -174,7 +185,7 @@ export default function BulkPercent({ brands, categories }) {
                         <div className="pt-2 flex items-center justify-center gap-3">
                             <button
                                 disabled={isUpdating ? true : false}
-                                onClick={() => handleApplyBulkPercent(categoryBulkPercentVal, "category", selectedCategoryPK)}
+                                onClick={() => handleApplyBulkPercent(categoryBulkPercentVal, "category", selectedCategoryPK.toString())}
                                 className="flex-1 flex items-center justify-center py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer shadow"
                             >
                                 {isUpdating === "category" ?

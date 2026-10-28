@@ -1,13 +1,14 @@
 import {
     Inbox,
     ArrowDownLeft, ArrowUpRight
-    , X 
+    , X
 } from "lucide-react";
-import { ReactElement, useCallback, useEffect, useState } from "react";
+import { ReactElement, useCallback, useContext, useEffect, useState } from "react";
 import { Transaction } from "../types";
 import { formatPrice } from "../utils/formatters";
 import fetchData from "../utils/fetchData";
 import Skeleton from "react-loading-skeleton";
+import { MainContext, MainContextValue } from "../contexts/MainContext";
 
 interface UserTransactionModalProps {
     userId: number | string;
@@ -18,24 +19,21 @@ export default function UserTransactionModal({
     userId,
     onClose
 }: UserTransactionModalProps) {
+    const mainContextValue = useContext<MainContextValue>(MainContext)
+
     const [isLoadingTransactions, setIsLoadingTransactions] = useState(true)
-    const [transactions, setTransactions] = useState([])
+    const [transactions, setTransactions] = useState<Transaction[]>([])
 
 
     useEffect(() => {
-        fetchData("orders/admin-user-transactions/" + userId, ({ data, status }: {
-            data: Transaction[] | { error: boolean, error_des?: string, details?: string };
-            status: number;
-        }) => {
-            console.log(data)
+        fetchData("orders/admin-user-transactions/" + userId, ({ data, status }) => {
             if (status === 200) {
                 setTransactions(data)
             } else {
-                const e = data.error_des || data.details || "خطا در پردازش"
-                console.log(e)
+                mainContextValue?.onError("خطا در دریافت اطلاعات")
             }
             setIsLoadingTransactions(false)
-        }, () => setIsLoadingTransactions(true))
+        }, () => setIsLoadingTransactions(true), () => mainContextValue?.onError("خطا در دریافت اطلاعات"))
     }, [
         userId
     ])
@@ -158,13 +156,13 @@ export default function UserTransactionModal({
                                 )}
                         </tbody>
                     </table>
-                    {transactions.length === 0 && 
-                    <div className="p-8 flex flex-col  min-w-300 justify-center items-center ">
-                        <Inbox size={35} className="text-gray-500"/>
-                        <span className="font-semibold text-gray-500 ">
-                            هیچ تراکنشی برای این کاربر وجود ندارد
-                        </span>
-                    </div>
+                    {transactions.length === 0 &&
+                        <div className="p-8 flex flex-col  min-w-300 justify-center items-center ">
+                            <Inbox size={35} className="text-gray-500" />
+                            <span className="font-semibold text-gray-500 ">
+                                هیچ تراکنشی برای این کاربر وجود ندارد
+                            </span>
+                        </div>
                     }
                 </div>
             </div>

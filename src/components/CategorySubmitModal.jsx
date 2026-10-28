@@ -1,9 +1,12 @@
 import API from "@/api/api";
 import { Layers, X } from "lucide-react";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import Spinner from "./Spinner";
+import { MainContext } from "../contexts/MainContext";
+import compileErrorOBJToArray from "../utils/compileErrorsOBJToArray";
 
 export default function CategorySubmitModal({setIsQuickCategoryModalOpen , setCategories }) {
+    const mainContextValue = useContext(MainContext)
 
     const [catName , setCatName] = useState("")
     const [isSubmiting , setIsSubmiting ] = useState(false)
@@ -15,18 +18,16 @@ export default function CategorySubmitModal({setIsQuickCategoryModalOpen , setCa
             setIsSubmiting(true)
             const {data : {category} , status} = await API.post("products/admin-category-create/", {name : catName} )
             if (status === 200) {
-                console.log(category)
                 setCategories(prev => {
-                     console.log(prev)
                     return [...prev , category]})
                 setIsQuickCategoryModalOpen(false)
             } else {
                 const e = data.error_des || data.detail || "خطای غیر منتظره"
-                console.log(e)
+                mainContextValue?.onError(typeof e === "object" ? compileErrorOBJToArray(e)?.join(",") : "خطایی رخ داده است")
             }
             setIsSubmiting(false)
         } catch (e) {
-            console.log(e)
+            mainContextValue.onError("خطایی رخ داده است!")
             setIsSubmiting(false)
         }
     }

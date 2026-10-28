@@ -1,10 +1,11 @@
-import { MouseEventHandler, useState } from "react";
+
 import { ReturnRequest } from "../types";
 import { X } from "lucide-react";
 
 interface ReturnRequestDetailModalProps {
     returnRequest: ReturnRequest;
-    onClose: () => void
+    onClose: () => void;
+    
 }
 
 
@@ -29,7 +30,7 @@ export default function ReturnRequestDetailModal({ returnRequest, onClose }: Ret
                 return "ثبت نشده"
         }
     }
-    console.log(returnRequest, "from detail modal")
+
     return (
         <div className="w-dvw fixed top-0 right-0 h-dvh flex justify-center items-center z-150 bg-gray-800/50">
             <div className="w-[85%] p-1.5 max-h-75 md:w-150 overflow-y-auto m-1 bg-white rounded-xl">

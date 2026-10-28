@@ -1,5 +1,5 @@
-import { Boxes, CheckCircle2, Edit2, FileSpreadsheet, PackageX, Save, Search, Trash2 } from "lucide-react";
-import { createElement, useCallback, useDeferredValue, useEffect, useState } from "react";
+import {  CheckCircle2, Edit2, FileSpreadsheet, PackageX, Save, Search } from "lucide-react";
+import {  useCallback, useContext, useDeferredValue, useEffect, useState } from "react";
 import Spinner from "./Spinner";
 import Skeleton from "react-loading-skeleton";
 import { formatPrice, toPersianDigits } from "../utils/formatters";
@@ -8,12 +8,14 @@ import fetchData from "../utils/fetchData";
 import PaginationContainer from "./Pagintation";
 import API from "@/api/api";
 import ReturnRequestDetailModal from "./ReturnRequestsDetailModal";
+import { MainContext } from "../contexts/MainContext";
+import compileErrorOBJToArray from "../utils/compileErrorsOBJToArray";
 
 interface ReturnRequestFilterState {
     status: ReturnRequest["status"] | "all";
     searchQuery: string;
     reason: ReturnRequest["reason"] | "all";
-    page: number
+    page: number;
 }
 
 
@@ -21,7 +23,10 @@ interface AdminReturnRequest {
     storeSettings: StoreSettings
 }
 
+
 export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest) {
+    const mainContextValue = useContext(MainContext)
+    
     const [successMsg, setSuccessMsg] = useState("")
     const [isFetchingData, setIsFetchingData] = useState(false)
     const [isGeneratingExcel, setIsGeneratingExcel] = useState(false)
@@ -48,7 +53,7 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
         searchParams.append("reason", filterState.reason === "all" ? "" : filterState.reason)
         searchParams.append("searchQuery", filterState.searchQuery);
         searchParams.append("page", filterState.page.toString())
-        searchParams.append("status", filterState.status === "all" ? "" : filterState.status)
+        searchParams.append("status", filterState?.status === "all" ? "" : filterState.status)
         return searchParams
     }, [])
 
@@ -74,12 +79,15 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
 
                 } else {
                     const e = data.error_des || "خطا در پدازش داده"
-                    console.log(e)
+                    if (typeof e === "object" ) {
+                        mainContextValue?.onError(compileErrorOBJToArray(e)?.join(","))
+                    }
+                
                 }
                 setIsFetchingData(false)
-            }, () => setIsFetchingData(true))
+            }, () => setIsFetchingData(true), () => mainContextValue?.onError("خطایی رخ داده است"))
         } catch (e) {
-            console.log(e)
+            mainContextValue?.onError("خطایی غیرمنتظره رخ داد")
         }
 
     }, [filterState])
@@ -104,10 +112,10 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
                 link.remove()
             } else {
                 const e = data.detail || "خطا در پدازش"
-                console.log(e)
+                mainContextValue?.onError(e)
             }
         } catch (e) {
-            console.log(e)
+             mainContextValue?.onError("خطایی رخ داده اسست")
         }
     }
 
@@ -122,12 +130,15 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
                 setTimeout(() => setSuccessMsg(""), 1000)
             } else {
                 const e = response.data.error_des || response.data.detail || "خطا"
-                console.log(e)
-
+                if (typeof e === "object"){
+                mainContextValue?.onError(compileErrorOBJToArray(e)?.join(","))    
+                return ;
+            } 
+            mainContextValue?.onError("خطایی رخ داده است")
             }
             setEditingReturnRequest(null)
         } catch (e) {
-            console.log(e)
+            mainContextValue?.onError("خطایی رخ داده است")
             setEditingReturnRequest(null)
         }
     }
@@ -166,6 +177,8 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
                 return "ارسال اشتباه کالا"
             case "other":
                 return "سایر موارد"
+            default:
+                return "ثبت نشده"
         }
     }
 
@@ -233,7 +246,7 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
                         <div className="flex flex-wrap items-center gap-2">
                             <select
                                 value={filterState.status}
-                                onChange={(e) => setFilterState(prev => ({ ...prev, status: e.target.value }))}
+                                onChange={(e) => setFilterState(prev => ({ ...prev, status: e.currentTarget.value }))}
                                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 cursor-pointer"
                             >
                                 <option value="all">همه وضعیت ها</option>
@@ -326,10 +339,10 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
                                     returnRequests.map(returnRequest => {
                                         const item = returnRequest.item
                                         const product = item?.product
-                                        const productPrice = product?.price * (100 - product?.off)
-                                        const itemPrice = item?.price_accepted_by_admin || item?.price
-                                        const itemQTY = item?.quantity || item?.quantity_accepted_by_admin
-                                        const defaultReturnPrice = itemQTY * itemPrice || productPrice * itemPrice || 0
+                                        const productPrice = product?.price ? product.price * (100 - (product?.off || 0)) : 0
+                                        const itemPrice = item?.price_accepted_by_admin || item?.price || 0
+                                        const itemQTY = item?.quantity || item?.quantity_accepted_by_admin || 0
+                                        const defaultReturnPrice = (itemQTY * itemPrice) || (productPrice * itemPrice) || 0
                                         return (
                                             <tr key={returnRequest.pk} className={`hover:bg-slate-50 transition bg-rose-50/40`}>
                                                 <td className="p-3 font-mono font-bold  text-center text-slate-600 dir-ltr ">

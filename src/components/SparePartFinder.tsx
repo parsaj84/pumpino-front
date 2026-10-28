@@ -1,72 +1,70 @@
-import React, { useDeferredValue, useEffect, useState } from 'react';
+import React, { Dispatch, SetStateAction, useContext, useDeferredValue, useEffect, useState } from 'react';
 import {
-  Zap,
   Search,
-  CheckCircle2,
-  ShoppingBag,
   Wrench,
-  Layers,
-  ShieldCheck,
   Sparkles,
-  ArrowRight,
   Info
 } from 'lucide-react';
-import { Product, StoreSettings } from '../types';
+import { CartData, PaginationData, Product, StoreSettings } from '../types';
 import { ProductCard } from './ProductCard';
 import { toPersianDigits } from '../utils/formatters';
 import PaginationContainer from './Pagintation';
 import fetchData from '../utils/fetchData';
 import { ProductCardLoading } from './ProductCardLoading';
+import { MainContext } from '../contexts/MainContext';
+import Skeleton from 'react-loading-skeleton';
 
 
 
 interface SparePartFinderProps {
-  products: Product[];
+  cartItemsId: (string | null | number)[]
   storeSettings: StoreSettings;
   onViewDetails: (p: Product) => void;
-  onAddToQuote: (p: Product) => void;
-  quoteItemIds: string[];
+  setCartData: Dispatch<SetStateAction<CartData | null>>;
 }
 
 export const SparePartFinder: React.FC<SparePartFinderProps> = ({
-  products,
   storeSettings,
   onViewDetails,
-  onAddToQuote,
-  quoteItemIds
+  setCartData,
+  cartItemsId,
+  
 }) => {
+
+  const mainContextValue = useContext(MainContext)
 
 
   // Popular pump presets
   //must Change to State -> order by order
-  const popularPumps = [
-    { title: 'پنتاکس جتی ۱ اسب (CAM100)', query: 'CAM100' },
-    { title: 'پنتاکس بشقابی ۱ اسب (CM100)', query: 'CM100' },
-    { title: 'پنتاکس محیطی نیم اسب (PM45)', query: 'PM45' },
-    { title: 'الکتروژن جتی ۱ اسب (Jet100)', query: 'Jet100' },
-    { title: 'ابارا بشقابی ۱ اسب (CMA100)', query: 'CMA100' },
-    { title: 'پنتاکس دو پروانه ۲ اسب (CB210)', query: 'CB210' },
-  ];
+  const [popularPumps, setPopularPumps] = useState<{ technical_model: string, title: string }[]>([]);
+  const [isLoadingPopularPumps, setIsLoadingPopularPumps] = useState(true)
+  useEffect(() => {
 
+    fetchData("products/product-get-popular-products/", ({ data, status }) => {
 
-
-  const handleAddAllToQuote = () => {
-    compatibleParts?.forEach(p => {
-      if (!quoteItemIds.includes(p.id)) {
-        onAddToQuote(p);
+      if (status === 200) {
+        setPopularPumps(data)
+      } else {
+        mainContextValue?.onError("خطایی رخ داد!")
       }
-    });
-  };
+      setIsLoadingPopularPumps(false)
+    }, () => setIsLoadingPopularPumps(true), () => mainContextValue?.onError("خطایی رخ داده است"))
+  }, [])
+
 
   // my codes block
-  const [compatibleParts, setCompatibleParts] = useState(null)
+  const [compatibleParts, setCompatibleParts] = useState<Product[] | null>(null)
   const [isLoadingCompatibleParts, setIsLoadingCompatibleParts] = useState(false)
-  const [paginationState, setPaginationState] = useState(null)
+  const [paginationState, setPaginationState] = useState<PaginationData | null>({
+    prevPage: null,
+    nextPage: 2,
+    numPages: []
+  })
   const [filterState, setFilterState] = useState({
     compatiblePartsSearchQuery: "",
     page: ""
   })
-  const [compatiblePartsCount , setCompatiblePartsCount] = useState(0)
+  const [compatiblePartsCount, setCompatiblePartsCount] = useState(0)
   const defferedFilterState = useDeferredValue(filterState)
   useEffect(() => {
     setIsLoadingCompatibleParts(true)
@@ -76,13 +74,13 @@ export const SparePartFinder: React.FC<SparePartFinderProps> = ({
       )
 
       fetchData("/products/compatible-parts/" + "?" + searchParam.toString(), (response) => {
-        console.log(response.data)
+
         setCompatibleParts(response.data.products)
         setIsLoadingCompatibleParts(false)
         setCompatiblePartsCount(response.data.all_objs_count)
         setPaginationState({
           nextPage: response.data.next_page,
-          previousePage: response.data.previous_page,
+          prevPage: response.data.previous_page,
           numPages: response.data.num_pages
         })
       })
@@ -90,7 +88,7 @@ export const SparePartFinder: React.FC<SparePartFinderProps> = ({
     return () => clearTimeout(timeoutId)
   }, [filterState])
 
-  // const [popularPumps , setPopularPumps] = useState(null)
+
 
 
 
@@ -116,14 +114,20 @@ export const SparePartFinder: React.FC<SparePartFinderProps> = ({
           {/* Quick Preset Buttons */}
           <div className="pt-2 flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-400 font-medium">مدل‌های پرمصرف:</span>
-            {popularPumps.map((pump, idx) => (
+            {isLoadingPopularPumps ? Array(8).fill({}).map(() => {
+              return (
+                <div className='mx-1 rounded-xl text-xs font-medium transition cursor-pointer '>
+                  <Skeleton height={20} width={60} />
+                </div>
+              )
+            }) : popularPumps.map((pump, idx) => (
               <button
                 key={idx}
-                onClick={() => setfilterState.compatiblePartsSearchQuery(pump.query)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer border ${filterState.compatiblePartsSearchQuery === pump.query
-                  ? 'bg-sky-500 text-white font-bold border-sky-400 shadow-md'
-                  : 'bg-slate-800/80 text-slate-200 hover:bg-slate-700 border-slate-700'
-                  }`}
+                onClick={() => setFilterState(prev => ({ ...prev, compatiblePartsSearchQuery: pump.title }))}
+                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer border 
+                   border-sky-400 shadow-md'
+                   'bg-slate-800/80 text-slate-200 hover:bg-slate-700 border-slate-700'
+                  `}
               >
                 {pump.title}
               </button>
@@ -144,16 +148,6 @@ export const SparePartFinder: React.FC<SparePartFinderProps> = ({
           />
           <Search className="w-5 h-5 text-slate-400 absolute right-3 top-3.5" />
         </div>
-
-        {compatiblePartsCount> 0 && (
-          <button
-            onClick={handleAddAllToQuote}
-            className="w-full md:w-auto px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs md:text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>افزودن کلیه قطعات این پمپ به لیست استعلام ({toPersianDigits(compatiblePartsCount)} آیتم)</span>
-          </button>
-        )}
       </div>
 
       {/* Results Header */}
@@ -178,12 +172,12 @@ export const SparePartFinder: React.FC<SparePartFinderProps> = ({
             <ProductCard
               key={p.pk}
               product={p}
-              brandName={`${p.brand.name}(${p.brand.country})`}
-              categoryName={p.categories.map(c => c.name).join()}
+              brandName={`${p.brand?.name}(${p.brand?.country})`}
+              categoryName={p.categories?.map(c => c.name).join()}
               storeSettings={storeSettings}
               onViewDetails={onViewDetails}
-              onAddToQuote={onAddToQuote}
-              isInQuote={quoteItemIds.includes(p.id)}
+              setCartData={setCartData}
+              isInQuote={cartItemsId && cartItemsId?.includes(p.pk.toString())}
             />
           ))}
         </div>
@@ -202,7 +196,7 @@ export const SparePartFinder: React.FC<SparePartFinderProps> = ({
 
         </div>
       )}
-      {(isLoadingCompatibleParts ) || <PaginationContainer productsCount={compatiblePartsCount}  setFilterState={setFilterState} nextPage={paginationState?.nextPage} prevPage={paginationState?.previousePage} pageNums={paginationState?.numPages} />}
+      {(isLoadingCompatibleParts) || <PaginationContainer productsCount={compatiblePartsCount} setFilterState={setFilterState} nextPage={paginationState?.nextPage || null} prevPage={paginationState?.prevPage || null} pageNums={paginationState?.numPages || []} />}
     </div>
   );
 };

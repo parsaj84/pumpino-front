@@ -1,28 +1,30 @@
-import React, { useState } from 'react';
+import React, { Dispatch, SetStateAction, useContext, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   MessageSquare,
   Send,
   User,
-  ShieldCheck,
   Clock,
   Sparkles,
   ChevronDown,
   ChevronUp,
   MessageCircle,
-  CheckCheck
 } from 'lucide-react';
-import { CustomerOrder, OrderMessage } from '../types';
+import { CustomerOrder,  UserData as UserDataType } from '../types';
 import { toPersianDigits } from '../utils/formatters';
 import Spinner from './Spinner';
 import API from '@/api/api';
+import { MainContext } from '../contexts/MainContext';
 
 interface OrderTicketChatProps {
   order: CustomerOrder;
   currentUserRole: 'customer' | 'admin';
   currentUserName: string;
-  onSendMessage: (orderId: string, messageText: string) => void;
   defaultExpanded?: boolean;
+  page: "userOrders" | "adminPanel";
+  user: UserDataType;
+
+  setOrders: Dispatch<SetStateAction<CustomerOrder[]>>
 }
 
 export const OrderTicketChat: React.FC<OrderTicketChatProps> = ({
@@ -33,6 +35,9 @@ export const OrderTicketChat: React.FC<OrderTicketChatProps> = ({
   defaultExpanded = false,
   user
 }) => {
+
+  const mainContextValue = useContext(MainContext)
+
   const [isOpen, setIsOpen] = useState(defaultExpanded);
   const [inputText, setInputText] = useState('');
   const [isSubmiting, setIsSubmiting] = useState(false)
@@ -54,18 +59,17 @@ export const OrderTicketChat: React.FC<OrderTicketChatProps> = ({
             ele.pk === order.pk
               ? {
                 ...ele,
-                order_tickets: [...ele.order_tickets, data.ticket],
+                order_tickets: ele.order_tickets ? [...ele.order_tickets, data.ticket] : [data.ticket],
               }
               : ele
           )
         );
       } else {
-        const e = data.errors
-        console.log(e)
+        mainContextValue?.onError("خطا در هنگام ثبت تیکت")
       }
       setIsSubmiting(false)
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطا در هنگام ثبت تیکت")
       setIsSubmiting(false)
     }
 
@@ -104,7 +108,7 @@ export const OrderTicketChat: React.FC<OrderTicketChatProps> = ({
                 چت و تیکت پشتیبانی پیش‌فاکتور
               </h4>
               <span className="text-[11px] font-mono font-bold bg-sky-500/30 text-sky-200 px-2 py-0.5 rounded-full border border-sky-400/30">
-                {order.orderNumber}
+                {order.pk || "ثبت نشده"}
               </span>
             </div>
             <p className="text-[11px] text-slate-300 mt-0.5">
@@ -152,13 +156,13 @@ export const OrderTicketChat: React.FC<OrderTicketChatProps> = ({
                 </div>
               ) : (
                 messages.map((msg) => {
-                  const isMe = msg.user_from === user.data.pk;
+                  const isMe = msg.user_from === user.data?.pk;
 
 
 
                   return (
                     <motion.div
-                      key={msg.id}
+                      key={msg.pk}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       className={` flex  flex-col-reverse ${isMe ? 'items-start' : 'items-end'}`}

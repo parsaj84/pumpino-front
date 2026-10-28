@@ -1,42 +1,44 @@
-import { Dispatch, ReactElement, SetStateAction, useState } from "react";
-import { AdminUser, FormConfig } from "../types";
-import { Save, ShieldAlert, ShieldCheck, X } from "lucide-react";
+import { Dispatch,  SetStateAction, SubmitEvent, useContext, useState } from "react";
+import { FormConfig, User } from "../types";
+import { Save, ShieldCheck, X } from "lucide-react";
 import { AxiosResponse } from "axios";
 import API from "@/api/api";
 import Spinner from "./Spinner";
+import { MainContext, MainContextValue } from "../contexts/MainContext";
 
 interface StaffCreateModalProps {
-    editingAdmin: AdminUser | null;
+    editingAdmin: User | null;
     onClose: () => void,
-    setEditingAdmin: Dispatch<SetStateAction<null>>;
-    setAdminUsers: Dispatch<SetStateAction<AdminUser[]>>;
-    adminUsers: AdminUser[]
+    setEditingAdmin: Dispatch<SetStateAction<null | User>>;
+    setAdminUsers: Dispatch<SetStateAction<User[]>>;
+    adminUsers: User[];
+
 }
 
 export default function StaffCreateModal({ editingAdmin, setAdminUsers, setEditingAdmin, adminUsers, onClose }: StaffCreateModalProps) {
+    const mainCotextValue = useContext<MainContextValue>(MainContext)
 
     const [formConfig, setFormConfig] = useState<FormConfig[]>([
-        { label: "نام", code: "fname", value: editingAdmin?.fname || "", isNumeric: false, rigex: null, required: true, error: "" },
-        { label: "نام خانوادگی", code: "lname", value: editingAdmin?.lname || "", isNumeric: false, rigex: null, required: true, error: "" },
-        { label: "شماره تلفن", code: "phone", value: editingAdmin?.phone || "", isNumeric: true, rigex: /^09\d{9}$/, required: true, error: "" },
-        { label: "رمز عبور", code: "password", value: "", isNumeric: false, rigex: null, required: editingAdmin ? false : true, error: "" },
-        { label: "ایمیل", code: "email", value: editingAdmin?.email || "", isNumeric: false, rigex: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, required: false, error: "" },
+        { label: "نام", code: "fname", value: editingAdmin?.fname || "", isNumeric: false, regex: null, required: true, error: "" },
+        { label: "نام خانوادگی", code: "lname", value: editingAdmin?.lname || "", isNumeric: false, regex: null, required: true, error: "" },
+        { label: "شماره تلفن", code: "phone", value: editingAdmin?.phone || "", isNumeric: true, regex: /^09\d{9}$/, required: true, error: "" },
+        { label: "رمز عبور", code: "password", value: "", isNumeric: false, regex: null, required: editingAdmin ? false : true, error: "" },
+        { label: "ایمیل", code: "email", value: editingAdmin?.email || "", isNumeric: false, regex: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, required: false, error: "" },
     ]);
 
-    console.log(editingAdmin)
 
-    const [isActive, setIsActive] = useState(editingAdmin?.is_active)
-    const [userRole, setUserRole] = useState<"superuser" | "staff_user">(editingAdmin?.is_superuser ? "superuser" : "staff_user")
+    const [isActive, setIsActive] = useState<boolean>(editingAdmin?.is_active || false)
+    const [userRole, setUserRole] = useState<"superuser" | "staff_user" | string>(editingAdmin?.is_superuser ? "superuser" : "staff_user")
     const [userRoleError, setUserRoleError] = useState("")
 
     const [isLoading, setIsLoading] = useState(false)
+    
 
-    console.log(editingAdmin, "editing admin")
 
-    const handleFormSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
+    const handleFormSubmit = async (e: SubmitEvent<HTMLFormElement>) :Promise<void> => {
         try {
             e.preventDefault()
-            const formData: Object = {}
+            const formData: Record<string, any > = {};
             let isValid = true
             const compiledConfig = formConfig.map(conf => {
                 conf.error = ""
@@ -46,7 +48,7 @@ export default function StaffCreateModal({ editingAdmin, setAdminUsers, setEditi
                     return conf
                 }
 
-                if (conf.value && conf.rigex && !conf.rigex.test(conf.value)) {
+                if (conf.value && conf.regex && !conf.regex.test(String(conf.value))) {
                     conf.error = `لطفا یک مقدار معتبر برای ${conf.label} وارد کنید!`
                     isValid = false;
                     return conf;
@@ -97,7 +99,7 @@ export default function StaffCreateModal({ editingAdmin, setAdminUsers, setEditi
 
             }
         } catch (e) {
-            console.log(e)
+            mainCotextValue?.onError("خطا در برقرار ارتباط با سرور ")
             setIsLoading(false)
         }
     }
@@ -140,7 +142,7 @@ export default function StaffCreateModal({ editingAdmin, setAdminUsers, setEditi
                                     <label className="font-extrabold text-slate-700 block mb-1">{conf.label}: {conf.required && "*"}</label>
                                     <input
                                         type="text"
-                                        value={conf.value}
+                                        value={(conf?.value || "" )as string}
                                         onChange={(e) => {
                                             let value = e.target.value
                                             if (conf.isNumeric) {
@@ -172,6 +174,7 @@ export default function StaffCreateModal({ editingAdmin, setAdminUsers, setEditi
                             <select
                                 value={userRole}
                                 onChange={(e) => {
+
                                     setUserRole(e.target.value)
                                 }}
                                 className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900 focus:bg-white focus:border-purple-600 outline-none"

@@ -1,84 +1,80 @@
-import { useState } from 'react';
+import { Dispatch, SetStateAction, useContext, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
   ShoppingBag,
   Share2,
   CheckCircle2,
-  Tag,
-  Layers,
-  ShieldCheck,
-  PhoneCall,
   MessageSquare,
   Info,
-  Calendar,
   Wrench,
-  Check,
-  RemoveFormatting
 } from 'lucide-react';
-import { Product, StoreSettings, Category, Brand } from '../types';
+import { Product, StoreSettings, Category, Brand, CartData } from '../types';
 import { formatPrice, getStockBadge, toPersianDigits, generateWhatsAppShareUrl, generateTelegramShareUrl } from '../utils/formatters';
 import API from '@/api/api';
 import Spinner from './Spinner';
+import { MainContext } from '../contexts/MainContext';
 
 
 interface ProductDetailModalProps {
   product: Product | null;
   onClose: () => void;
-  onAddToQuote: (product: Product) => void;
   isInQuote: boolean;
   storeSettings: StoreSettings;
-  categories: Category[];
-  brand: Brand[];
+  brand?: Brand | null;
+  setCartData: Dispatch<SetStateAction<CartData | null>>
+  categories?: Category[]
 }
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   product,
   onClose,
-  onAddToQuote,
   isInQuote,
   storeSettings,
-  categories,
   brand,
-  cartData,
+
   setCartData
 }) => {
+
+  const mainContextValue = useContext(MainContext)
 
   const [isTogglingCartStatus, setIsTogglingCartStatus] = useState(false)
 
   async function handleAddToQuote() {
     try {
       setIsTogglingCartStatus(true);
-      const { data, status } = await API.post("cart/add-to-cart/", { product_id: product.pk.toString() });
+      const { data, status } = await API.post("cart/add-to-cart/", { product_id: product?.pk.toString() || "" });
       if (status === 200) {
         setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...prev.cart_items, data.cart_item] }))
       } else {
-        const e = data.error_des
-        console.log(e)
+        mainContextValue?.onError("خطا هنگام حذف از سبد خرید")
+
       }
       setIsTogglingCartStatus(false)
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطا هنگام حذف از سبد خرید")
+
       setIsTogglingCartStatus(false)
     }
   }
   async function handleRmoveFromCart() {
     try {
       setIsTogglingCartStatus(true)
-      const { status, data } = await API.post("cart/remove-cart-item/", { product_id: product.pk })
+      const { status, data } = await API.post("cart/remove-cart-item/", { product_id: product?.pk || "" })
       if (status === 200 && data.success) {
-        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...prev.cart_items].filter(ele => !(ele.product_id === product.pk.toString())) }))
+        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...prev.cart_items].filter(ele => !(ele.product_id === product?.pk.toString())) }))
       } else {
-        const e = data.error_des
-        console.log(e)
+        mainContextValue?.onError("خطا در هنگام حذف از سبد خرید")
       }
       setIsTogglingCartStatus(false)
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطا در هنگام حذف از سبد خرید")
       setIsTogglingCartStatus(false)
     }
   }
 
+  const files = product?.files
+  const firstFile = files && files.length > 0 && files[0]
 
   return (
     <AnimatePresence>
@@ -106,7 +102,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   {product.title}
                 </span>
                 <span className="text-xs text-slate-400">
-                  {categories.map(ele => ele.name).join(",")}
+                  {product.categories?.map(ele => ele.name).join(",")}
                 </span>
               </div>
 
@@ -130,8 +126,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   className="w-full sm:w-48 h-48 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center relative shadow-sm group"
                 >
                   <img
-                    src={product.files[0].image || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&auto=format&fit=crop&q=80'}
-                    alt={product.files[0].alt_name}
+                    src={firstFile ? firstFile.image : 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&auto=format&fit=crop&q=80'}
+                    alt={firstFile ? firstFile.alt_name : "پمپینو | مرجع فروش پمپ و ابزارالات"}
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                   />
                 </motion.div>
@@ -157,7 +153,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   <div className="pt-2 border-t border-slate-100 flex items-baseline gap-2">
                     <span className="text-xs text-slate-500">قیمت فروش:</span>
                     <span className="text-xl font-black text-sky-900">
-                      {formatPrice(product.price * ((100 - product.off) / 100), storeSettings.currencyUnit)}
+                      {formatPrice(product.price * ((100 - (Number(product.off) || 0)) / 100), storeSettings.currencyUnit)}
                     </span>
                   </div>
                 </div>
@@ -171,7 +167,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </h3>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
-                  {product.features.map(feature => (
+                  {product.features && product.features.length > 0 && product.features.map(feature => (
                     <motion.div whileHover={{ scale: 1.02 }} className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
                       <span className="text-slate-500 block">{feature.feature_name} :</span>
                       <span className="font-bold text-slate-800">{toPersianDigits(feature.feature_value)}</span>
@@ -249,8 +245,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
                 }}
                 className={`px-5 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer shadow-md ${isInQuote
-                    ? 'bg-red-700 text-white hover:bg-emerald-800'
-                    : 'bg-sky-500 text-slate-950 hover:bg-amber-400'
+                  ? 'bg-red-700 text-white hover:bg-emerald-800'
+                  : 'bg-sky-500 text-slate-950 hover:bg-amber-400'
                   }`}
               >
                 {isTogglingCartStatus ? <Spinner width={20} height={20} borderMainColor={"white"} borderTopColor={isInQuote ? "red" : "blue"} borderWidth={2} /> : isInQuote ? (

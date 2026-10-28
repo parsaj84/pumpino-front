@@ -1,36 +1,30 @@
-import React, { useState, useEffect, useCallback, useDeferredValue } from 'react';
+import React, { useState, useEffect, useCallback, useDeferredValue, useContext } from 'react';
 import {
   DollarSign,
   Plus,
   Trash2,
-  Save,
-  FileText,
   Image as ImageIcon,
-  CheckCircle2,
   Search,
   User,
   Phone,
-  Calendar,
-  Upload,
   X,
-  Eye,
-  Printer,
-  CreditCard,
   ArrowDownLeft,
   ArrowUpRight,
   Receipt
 } from 'lucide-react';
-import { CustomerTransaction, CustomerProfile, StoreSettings, TotalTransactionData, OrderItem, User as UserType } from '../types';
+import { CustomerTransaction, CustomerProfile, StoreSettings, TotalTransactionData, OrderItem, User as UserType, PaginationData } from '../types';
 import { formatPrice, toPersianDigits } from '../utils/formatters';
 import Spinner from './Spinner';
 import fetchData from '../utils/fetchData';
-import { filter, td } from 'motion/react-client';
 import { Transaction } from '../types';
 import Skeleton from 'react-loading-skeleton';
 import PaginationContainer from './Pagintation';
 import TransactionDetailModal from './TransactionDetailModal';
-import { number } from 'motion';
 import UserTransactionModal from './UserTranactionsModal';
+import TransactionCreateModal from './TransactionCreateModal';
+import { MainContext, MainContextValue } from '../contexts/MainContext';
+import API from '@/api/api';
+import { AxiosResponse } from 'axios';
 
 
 interface CustomerTransactionsPanelProps {
@@ -52,6 +46,11 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
     paid: null,
     recieved: null
   })
+  const mainContextValue = useContext<MainContextValue>(MainContext)
+
+
+
+
   const [detailInspectingTransaction, setDetailInspectingTransaction] = useState<Transaction | null>(null)
   const [dateSelectValue, setDateSelectedValue] = useState<number>(30)
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -94,6 +93,7 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
   const [formCustomerName, setFormCustomerName] = useState('');
   const [formCustomerPhone, setFormCustomerPhone] = useState('');
   const [formType, setFormType] = useState<'receive' | 'pay'>('receive');
+
   const [formAmountToman, setFormAmountToman] = useState<number>(0);
   const [formDate, setFormDate] = useState<string>(new Date().toLocaleDateString('fa-IR'));
   const [formMethod, setFormMethod] = useState<CustomerTransaction['method']>('card_to_card');
@@ -104,22 +104,16 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
 
 
 
-  // Sayadi Cheque details form state
-  const [formSayadiId, setFormSayadiId] = useState('');
-  const [formChequeNumber, setFormChequeNumber] = useState('');
-  const [formChequeDueDate, setFormChequeDueDate] = useState('');
-  const [formChequeBankName, setFormChequeBankName] = useState('');
-  const [formChequeDrawerName, setFormChequeDrawerName] = useState('');
-  const [formChequeStatus, setFormChequeStatus] = useState<NonNullable<CustomerTransaction['chequeDetails']>['status']>('registered');
+
 
   const [viewMode, setViewMode] = useState<'ledger' | 'user_base'>('ledger');
-  const [selectedCustomerFilter, setSelectedCustomerFilter] = useState<string>('all');
-  const [dateSearchQuery, setDateSearchQuery] = useState<string>('');
+
 
 
   //loadings 
   const [isLoadingTotalTransactionsData, setIsLoadingTotalTransactionsData] = useState<boolean>(false)
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true)
+  const [isDeletingTransactionPK , setIsDeletingTransactionPK] = useState<Transaction["pk"] | null>()
 
 
   const [usersSerachQuery, setUsersSearchQuery] = useState("")
@@ -131,6 +125,11 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
       page: 1
     }
   )
+  const [userPaginationData, setUserPaginationData] = useState<PaginationData>({
+    nextPage: 2,
+    prevPage: null,
+    numPages: []
+  })
 
   const [isLoadingUsers, setIsLoadingUsers] = useState(false)
 
@@ -139,7 +138,7 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
     return () => clearTimeout(timeoutID)
   }, [defferedUsersSearchQuery])
 
-  console.log(usersFilterState)
+
   useEffect(() => {
     if (viewMode === 'user_base') {
       const searchParams = new URLSearchParams()
@@ -157,11 +156,15 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
         status: number
       }) => {
         if (status === 200) {
-          console.log(data)
           setUsers(data.data)
+          setUserPaginationData({
+            nextPage: Number(data.next_page),
+            prevPage: Number(data.prev_page),
+            numPages: data.page_nums
+          })
         } else {
           const e = data.error_des || data.detail || "حطا"
-          console.log(e)
+         mainContextValue?.onError(e)
         }
         setIsLoadingUsers(false)
       }, () => setIsLoadingUsers(true))
@@ -186,39 +189,18 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
             total: data.recieved - data.paid
           });
         } else {
-          const e = data.error_des || data.detail
-          console.log(e)
-
+          const e = data.error_des || data.detail || "خطا!"
+          mainContextValue?.onError(e)
         }
         setIsLoadingTotalTransactionsData(false)
-      }, () => setIsLoadingTotalTransactionsData(true))
+      }, () => setIsLoadingTotalTransactionsData(true) , () => mainContextValue?.onError("خطا در دریافت اطلاعات"))
     } catch (e) {
-      console.log(e)
+      mainContextValue?.onError("خطا در دریافت اطلاعات")
     }
   }
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [transactions]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 3 * 1024 * 1024) {
-        alert('حجم عکس فیش واریزی نباید بیشتر از ۳ مگابایت باشد.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormReceiptImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+
 
   const getTransactionReason = (transaction: Transaction) => {
     if (transaction.return_request) {
@@ -229,61 +211,32 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
     }
   }
 
+  
 
-  const handleCreateTransaction = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formCustomerName.trim() || formAmountToman <= 0) {
-      alert('لطفاً نام مشتری و مبلغ معتبر را وارد فرمایید.');
-      return;
-    }
 
-    const newTx: CustomerTransaction = {
-      id: `tx-${Date.now()}`,
-      customerId: `cust-${Date.now()}`,
-      customerName: formCustomerName.trim(),
-      customerPhone: formCustomerPhone.trim(),
-      type: formType,
-      amountToman: formAmountToman,
-      date: formDate.trim() || new Date().toLocaleDateString('fa-IR'),
-      method: formMethod,
-      trackingCode: formTrackingCode.trim(),
-      receiptImage: formReceiptImage,
-      description: formDescription.trim(),
-      chequeDetails: formMethod === 'cheque' ? {
-        sayadiId: formSayadiId.trim(),
-        chequeNumber: formChequeNumber.trim(),
-        dueDate: formChequeDueDate.trim(),
-        bankName: formChequeBankName.trim(),
-        drawerName: formChequeDrawerName.trim(),
-        status: formChequeStatus
-      } : undefined,
-      recordedBy: 'مدیریت فروشگاه',
-      createdAt: new Date().toISOString()
-    };
+  const handleDeleteTransaction = async (id: string) => {
+    try {
+      if (!id) {
+        mainContextValue?.onError("ایدی تراکنش ثبت نشده است")
+      }
+      if (confirm('آیا از حذف این تراکنش مالی اطمینان دارید؟')) {
+        setIsDeletingTransactionPK(id)
+        const { data, status }: AxiosResponse = await API.delete("orders/admin-transaction-delete/" + id.toString() + "/")
+        if (status === 200) {
+          setTransactions(prev => [...prev].filter(t => t.pk?.toString() !== id.toString()));
+        } else {
+          mainContextValue?.onError(data.error_des || data.details || "خطایی غیر منتطره رخ داد")
+        }
+        setIsDeletingTransactionPK(null)
 
-    setTransactions(prev => [newTx, ...prev]);
-    setIsModalOpen(false);
-
-    // Reset Form
-    setFormCustomerName('');
-    setFormCustomerPhone('');
-    setFormAmountToman(0);
-    setFormTrackingCode('');
-    setFormDescription('');
-    setFormReceiptImage('');
-    setFormSayadiId('');
-    setFormChequeNumber('');
-    setFormChequeDueDate('');
-    setFormChequeBankName('');
-    setFormChequeDrawerName('');
-    setFormChequeStatus('registered');
-  };
-
-  const handleDeleteTransaction = (id: string) => {
-    if (confirm('آیا از حذف این تراکنش مالی اطمینان دارید؟')) {
-      setTransactions(prev => prev.filter(t => t.id !== id));
+      }
+    } catch (e) {
+          mainContextValue?.onError("خطایی غیر منتطره رخ داد")
+        setIsDeletingTransactionPK(null)
+      
     }
   };
+
 
 
 
@@ -301,16 +254,7 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
 
   useEffect(() => {
     const searchParams = compileFilterStateToParams()
-    fetchData("orders/admin-transactions-list/?" + searchParams, ({ data, status }: {
-      data: {
-        result: Transaction[];
-        next_page: number | string;
-        previous_page: number | string;
-        page_nums: (number | string)[],
-
-      }
-      status: number
-    }) => {
+    fetchData("orders/admin-transactions-list/?" + searchParams, ({ data, status }) => {
       if (status === 200) {
         setTransactions(data.result)
         setPaginationData({
@@ -319,11 +263,11 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
           pageNums: data.page_nums,
         })
       } else {
-        const e = data.error_des || data.detail || "خطا!"
-        console.log(e)
+        const e = data.error_des || data.details || "خطا!"
+        mainContextValue?.onError(e)
       }
       setIsLoadingTransactions(false)
-    }, () => setIsLoadingTransactions(true))
+    }, () => setIsLoadingTransactions(true) , () => mainContextValue?.onError("خطا در دیافت اطلاعات"))
   }, [filterState])
 
 
@@ -396,8 +340,8 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
             </span>
           </div>
           <div className="text-xl font-black text-emerald-900 font-mono">
-            {isLoadingTotalTransactionsData ? <Spinner width={30} height={30} borderWidth={2.5} borderTopColor={"green"} /> :
-              totalTransactionData.recieved !== null ? formatPrice(totalTransactionData.recieved, storeSettings.currencyUnit) : "--------"
+            {isLoadingTotalTransactionsData ? <Spinner borderMainColor={"white"} width={30} height={30} borderWidth={2.5} borderTopColor={"green"} /> :
+              totalTransactionData.recieved !== null ? formatPrice(Number(totalTransactionData.recieved), storeSettings.currencyUnit) : "--------"
             }
           </div>
         </div>
@@ -413,8 +357,8 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
             </span>
           </div>
           <div className="text-xl font-black text-rose-900 font-mono">
-            {isLoadingTotalTransactionsData ? <Spinner width={30} height={30} borderWidth={2.5} borderTopColor={"red"} /> :
-              totalTransactionData.paid !== null ? formatPrice(totalTransactionData.paid, storeSettings.currencyUnit) : "--------"
+            {isLoadingTotalTransactionsData ? <Spinner borderMainColor={"white"} width={30} height={30} borderWidth={2.5} borderTopColor={"red"} /> :
+              totalTransactionData.paid !== null ? formatPrice(Number(totalTransactionData.paid), storeSettings.currencyUnit) : "--------"
             }
 
           </div>
@@ -431,8 +375,8 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
             </span>
           </div>
           <div className="text-xl font-black text-sky-900 font-mono">
-            {isLoadingTotalTransactionsData ? <Spinner width={30} height={30} borderWidth={2.5} borderTopColor={"blue"} /> :
-              totalTransactionData.total !== null ? `${totalTransactionData.total <= 0 ? "-" : ""}` + formatPrice(totalTransactionData.total, storeSettings.currencyUnit) : "--------"
+            {isLoadingTotalTransactionsData ? <Spinner borderMainColor={"white"} width={30} height={30} borderWidth={2.5} borderTopColor={"blue"} /> :
+              totalTransactionData.total !== null ? `${Number(totalTransactionData.total) <= 0 ? "-" : ""}` + formatPrice(Number(totalTransactionData.total), storeSettings.currencyUnit) : "--------"
             }
           </div>
         </div>
@@ -652,11 +596,16 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
                         <td className="p-3 text-center">
                           <button
                             type="button"
-                            onClick={() => handleDeleteTransaction(t.id)}
+                            disabled={isDeletingTransactionPK && isDeletingTransactionPK === t.pk ? true : false}
+                            onClick={() => handleDeleteTransaction(t.pk?.toString() || "")}
                             className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
                             title="حذف تراکنش"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {isDeletingTransactionPK && isDeletingTransactionPK === t.pk ?
+                            <Spinner borderMainColor={"white"} borderTopColor={"red"} borderWidth={1.75} height={17.5} width={17.5} />
+                            : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </td>
                       </tr>
@@ -708,7 +657,7 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
               <div className="space-y-6">
                 {isLoadingUsers ?
                   Array(6).fill({}).map(() => (
-                    <div  className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-xs">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-xs">
                       {/* Customer Banner */}
                       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
                         <div className="flex items-center gap-3">
@@ -775,295 +724,15 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
               </div>
             );
           })()}
+
+          {!isLoadingUsers && users.length !== 0 &&
+            <PaginationContainer nextPage={userPaginationData.nextPage} pageNums={userPaginationData.numPages} setFilterState={setUsersFilterState} prevPage={userPaginationData.prevPage} />}
         </div>
       )}
 
       {/* Modal for Creating New Customer Financial Transaction */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative border border-slate-100">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-sky-600" />
-                <span>ثبت فیش و تراکنش مالی جدید برای مشتری</span>
-              </h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateTransaction} className="space-y-4 text-xs">
-              {/* Type Selection */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">نوع تراکنش مالی:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormType('receive')}
-                    className={`py-2.5 rounded-xl font-black transition flex items-center justify-center gap-1.5 border cursor-pointer ${formType === 'receive'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-slate-50 text-slate-700 border-slate-200'
-                      }`}
-                  >
-                    <ArrowDownLeft className="w-4 h-4" />
-                    <span>دریافت از مشتری (+)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFormType('pay')}
-                    className={`py-2.5 rounded-xl font-black transition flex items-center justify-center gap-1.5 border cursor-pointer ${formType === 'pay'
-                      ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                      : 'bg-slate-50 text-slate-700 border-slate-200'
-                      }`}
-                  >
-                    <ArrowUpRight className="w-4 h-4" />
-                    <span>پرداخت به مشتری (-)</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Customer Name & Phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">نام کامل مشتری / شرکت:</label>
-                  <input
-                    type="text"
-                    required
-                    value={formCustomerName}
-                    onChange={(e) => setFormCustomerName(e.target.value)}
-                    placeholder="مثلاً: مهندس رضایی"
-                    className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">شماره همراه مشتری:</label>
-                  <input
-                    type="text"
-                    value={formCustomerPhone}
-                    onChange={(e) => setFormCustomerPhone(e.target.value)}
-                    placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-                    className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-300 font-mono font-bold text-slate-900"
-                  />
-                </div>
-              </div>
-
-              {/* Amount & Date */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">مبلغ واریزی / پرداختی (تومان):</label>
-                  <input
-                    type="number"
-                    required
-                    min="1000"
-                    value={formAmountToman || ''}
-                    onChange={(e) => setFormAmountToman(parseInt(e.target.value) || 0)}
-                    placeholder="مبلغ به تومان..."
-                    className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-300 font-black text-sm font-mono text-slate-900"
-                  />
-                  {formAmountToman > 0 && (
-                    <span className="text-[11px] font-bold text-sky-700 mt-1 block">
-                      {formatPrice(formAmountToman, 'تومان')}
-                    </span>
-                  )}
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">تاریخ تراکنش (شمسی):</label>
-                  <input
-                    type="text"
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    placeholder="۱۴۰۳/۰۵/۱۲"
-                    className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-300 font-mono font-bold text-slate-900"
-                  />
-                </div>
-              </div>
-
-              {/* Method & Tracking Code */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">روش واریز / پرداخت:</label>
-                  <select
-                    value={formMethod}
-                    onChange={(e) => setFormMethod(e.target.value as any)}
-                    className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
-                  >
-                    <option value="card_to_card">کارت به کارت</option>
-                    <option value="bank_transfer">حواله پایا / ساتنا</option>
-                    <option value="online_gateway">درگاه آنلاین شتاب</option>
-                    <option value="cheque">چک بنفش صیادی (سامانه صیاد/پیچک)</option>
-                    <option value="cash">نقدی / تحویل دستی</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">کد پیگیری / شماره فیش:</label>
-                  <input
-                    type="text"
-                    value={formTrackingCode}
-                    onChange={(e) => setFormTrackingCode(e.target.value)}
-                    placeholder="مثلاً: ۹۸۷۶۵۴۳۲۱"
-                    className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-300 font-mono font-bold text-slate-900 dir-ltr text-center"
-                  />
-                </div>
-              </div>
-
-              {/* Dedicated Sayadi Cheque Details Section */}
-              {formMethod === 'cheque' && (
-                <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-4 space-y-3 animate-fadeIn">
-                  <div className="flex items-center justify-between border-b border-purple-200 pb-2">
-                    <span className="font-extrabold text-xs text-purple-900 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-purple-700" />
-                      <span>مشخصات کامل چک صیادی بنفش (ثبت الکترونیک صیاد)</span>
-                    </span>
-                    <span className="bg-purple-200 text-purple-950 font-mono font-bold text-[10px] px-2 py-0.5 rounded-full">
-                      سامانه پیچک / صیاد
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="font-bold text-slate-800 text-xs block mb-1">شناسه ۱۶ رقمی صیادی:</label>
-                      <input
-                        type="text"
-                        maxLength={16}
-                        value={formSayadiId}
-                        onChange={(e) => setFormSayadiId(e.target.value)}
-                        placeholder="۱۶ رقم شناسه صیادی..."
-                        className="w-full bg-white p-2.5 rounded-xl border border-purple-300 font-mono font-black text-slate-900 dir-ltr text-center focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-slate-800 text-xs block mb-1">شماره برگ چک:</label>
-                      <input
-                        type="text"
-                        value={formChequeNumber}
-                        onChange={(e) => setFormChequeNumber(e.target.value)}
-                        placeholder="شماره سریال چک..."
-                        className="w-full bg-white p-2.5 rounded-xl border border-purple-300 font-mono font-bold text-slate-900 dir-ltr text-center"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="font-bold text-slate-800 text-xs block mb-1">تاریخ سررسید چک:</label>
-                      <input
-                        type="text"
-                        value={formChequeDueDate}
-                        onChange={(e) => setFormChequeDueDate(e.target.value)}
-                        placeholder="مثلاً ۱۴۰۳/۰۸/۲۵"
-                        className="w-full bg-white p-2.5 rounded-xl border border-purple-300 font-mono font-bold text-slate-900 text-center"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-slate-800 text-xs block mb-1">نام بانک صادرکننده:</label>
-                      <input
-                        type="text"
-                        value={formChequeBankName}
-                        onChange={(e) => setFormChequeBankName(e.target.value)}
-                        placeholder="بانک ملی، صادرات، تجارت و..."
-                        className="w-full bg-white p-2.5 rounded-xl border border-purple-300 font-bold text-slate-900"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-slate-800 text-xs block mb-1">نام صادرکننده چک:</label>
-                      <input
-                        type="text"
-                        value={formChequeDrawerName}
-                        onChange={(e) => setFormChequeDrawerName(e.target.value)}
-                        placeholder="نام شخص یا شرکت صادرکننده..."
-                        className="w-full bg-white p-2.5 rounded-xl border border-purple-300 font-bold text-slate-900"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-800 text-xs block mb-1">وضعیت جاری چک:</label>
-                    <select
-                      value={formChequeStatus}
-                      onChange={(e) => setFormChequeStatus(e.target.value as any)}
-                      className="w-full bg-white p-2 rounded-xl border border-purple-300 font-bold text-slate-900"
-                    >
-                      <option value="registered">ثبت شده در سامانه صیاد (در انتظار سررسید)</option>
-                      <option value="deposited">واگذار شده به بانک جهت وصول</option>
-                      <option value="cleared">پاس شده / وصول شده (+)</option>
-                      <option value="bounced">برگشت خورده / فاقد موجودی (-)</option>
-                      <option value="returned">استرداد شده به مشتری</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* Receipt Image File Upload */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">تصویر فیش واریزی / برگه چک (اختیاری):</label>
-                <div className="flex items-center gap-3">
-                  <label className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 rounded-xl font-bold cursor-pointer transition flex items-center gap-1.5">
-                    <Upload className="w-4 h-4 text-sky-600" />
-                    <span>انتخاب تصویر فیش</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
-
-                  {formReceiptImage && (
-                    <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-xl border border-emerald-200 font-bold text-[11px]">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>تصویر آپلود شد</span>
-                      <button
-                        type="button"
-                        onClick={() => setFormReceiptImage('')}
-                        className="text-rose-600 hover:text-rose-800 mr-1"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">توضیحات و بابت:</label>
-                <textarea
-                  rows={2}
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="مثلاً: بابت تسویه فاکتور شماره ORD-1403-1002"
-                  className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
-                >
-                  انصراف
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black shadow-md"
-                >
-                  ثبت قطعی تراکنش
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <TransactionCreateModal setTransactions={setTransactions} setIsModalOpen={setIsModalOpen} />
       )}
 
       {/* Modal for Viewing Full Receipt Slip Image */}

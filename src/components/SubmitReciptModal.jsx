@@ -1,10 +1,12 @@
 import { X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {  useContext, useRef, useState } from "react";
 import Spinner from "./Spinner";
 import API from "@/api/api";
+import { MainContext } from "../contexts/MainContext";
 
 export default function SubmitReciptModal({ onClose, order , setOrders}) {
-    console.log(order)
+    const mainCotextValue = useContext(MainContext)
+
     const imageInputRef = useRef(null)
     const [imageSrc, setImageSrc] = useState(order.payment_image)
     const imageEntered = useRef(false)
@@ -34,10 +36,10 @@ export default function SubmitReciptModal({ onClose, order , setOrders}) {
         try {
             setImageSrc("")
             setError("")
-            const sizeLimit = 2 * 1024 * 1024
+            
             const file = event.target.files[0]
-            console.log(event.target.files[0])
             const result = validateFile(file)
+            
             if (!result) {
                 return;
             }
@@ -48,14 +50,13 @@ export default function SubmitReciptModal({ onClose, order , setOrders}) {
             }
             fileReader.readAsDataURL(file)
         } catch (err) {
-            console.log(err)
+            mainCotextValue?.onError("خطا در فرایند پردازش تصویر")
         }
     }
     const handleSubmitToBackend = async () => {
         try {
             const formData = new FormData(formRef.current)
             const file = formData.get("receipt_image")
-            console.log("file" , file)
             const result = validateFile(file)
             if (!imageEntered.current) {
                 setError("لطفا عکس را وارد کنید")
@@ -76,14 +77,13 @@ export default function SubmitReciptModal({ onClose, order , setOrders}) {
                     return ele
                 }))
                 onClose()
-                const e = "نیاز به الرت"
-                console.log(e)
+                mainCotextValue.onSuccess("رسید با موفقیت ثبت شد!")
             } else {
                 setError(data.error_des || data.detail || "خطا غیرمنتظره")
             }
             setIsSending(false)
         } catch (e) {
-            console.log(e)
+            mainCotextValue?.onError("خطا در فرایند ثبت رسید!")
             setIsSending(false)
         }
     }
@@ -99,7 +99,7 @@ export default function SubmitReciptModal({ onClose, order , setOrders}) {
                         <span className="text-xl text-gray-500"> برای انتخاب فیش کلیک کنید</span>
                         <span className="text-sm text-gray-300">عکس در فرمت jpeg , png و در حجم کمتر از دو مگابایت وارد کنید</span>
                         {error && <span className="text-sm text-red-500">{error}</span>}
-                        <form ref={formRef} onSubmit={() => console.log("form submitted")} className="hidden">
+                        <form ref={formRef}  className="hidden">
                             <input onChange={handleImageInput} ref={imageInputRef} type="file" accept="image/*" name="receipt_image" id="" className="hidden" />
                         </form>
                         <img className={`my-1.5 ${imageSrc ? "" : "hidden"}`} width={"150px"} height={"75px"} src={imageSrc} alt="" />

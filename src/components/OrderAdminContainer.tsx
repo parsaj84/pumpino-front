@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useCallback, useContext, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import {
     Trash2,
     CheckCircle2,
@@ -11,17 +11,26 @@ import { formatPrice, toPersianDigits } from "../utils/formatters";
 import { OrderTicketChat } from "./OrderTicketChat";
 import Spinner from './Spinner';
 import API from '@/api/api';
+import { CustomerOrder, OrderStatus, StoreSettings, UserData } from '../types';
+import { MainContext } from '../contexts/MainContext';
 
-export default function OrderAdminContainer({ setOrders, user, storeSettings, order, editingOrderPK, setEditingOrderPk }) {
+interface OrderAdminContainerProps {
+    setOrders: Dispatch<SetStateAction<CustomerOrder[]>>
+    user: UserData;
+    storeSettings: StoreSettings;
+    order: CustomerOrder;
+    editingOrderPK: string | number;
+    setEditingOrderPk: Dispatch<SetStateAction<string | number | null>>
+}
+
+
+export default function OrderAdminContainer({ setOrders, user, storeSettings, order, editingOrderPK, setEditingOrderPk }: OrderAdminContainerProps) {
+    const mainContextValue = useContext(MainContext)
     const [isSending, setIsSending] = useState(false)
-
-
     const customer = order.user;
-    const generateDeliveyType = useCallback((order) => {
-        console.log(order.delivery_type, "delivery type")
+    const generateDeliveyType = useCallback((order: CustomerOrder) => {
         switch (order?.delivery_type) {
             case "MOTORCYCLE_COURIER":
-                console.log("generated")
                 return (
                     <>
                         <Motorbike className="w-3.5 h-3.5 text-sky-600" />
@@ -47,23 +56,26 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
 
         }
     }, [])
-    const handleUpdateOrderStatus = useCallback((orderId: string, status: CustomerOrder['status'], adminNote?: string) => {
+    const handleUpdateOrderStatus = useCallback((orderId: number | string, status: CustomerOrder['order_status'] | string) => {
         setOrders(prev => [...prev].map(ele => {
             if (ele.pk !== orderId) {
                 return ele
             }
-            ele.order_status = status
+            ele.order_status = status as OrderStatus
             return ele
         }));
     }, [setOrders]);
 
-    const handleUpdateOrderItemQuantity = useCallback((orderId: string, itemId: number, newQty: number) => {
+    const handleUpdateOrderItemQuantity = useCallback((orderId: string | number | null | undefined, itemId: number | string | number | null | undefined, newQty: number) => {
+        if (!orderId || !itemId) {
+            return;
+        }
 
         setOrders(prev => [...prev].map(order => {
             if (order.pk !== orderId) {
                 return order
             }
-            order.items = [...order.items].map(item => {
+            order.items = order.items && [...order.items].map(item => {
                 if (item.pk !== itemId) {
                     return item
                 }
@@ -74,13 +86,13 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
         }))
     }, []);
 
-    const handleUpdateOrderItemPrice = useCallback((orderId: string, itemId: number, newPrice: number) => {
+    const handleUpdateOrderItemPrice = useCallback((orderId: string | number | null, itemId: number | string | null | undefined, newPrice: number) => {
 
         setOrders(prev => [...prev].map(order => {
             if (order.pk !== orderId) {
                 return order
             }
-            order.items = [...order.items].map(item => {
+            order.items = order.items && [...order.items].map(item => {
                 if (item.pk !== itemId) {
                     return item
                 }
@@ -92,31 +104,30 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
     }, [])
 
 
-    const handleUpdateOrder = useCallback(async (order) => {
+    const handleUpdateOrder = useCallback(async (order: CustomerOrder) => {
         try {
             setIsSending(true)
-            console.log(order)
-            const { data, status } = await API.put(`orders/order-update/${order.pk}/`, { delivery_price: order.delivery_price || 0, order_status: order.order_status, items: [...order.items].map(ele => ({ pk: ele.pk, price_accepted_by_admin: ele.price_accepted_by_admin || ele.price, quantity_accepted_by_admin: ele.quantity_accepted_by_admin || ele.quantity })) })
+            const { data, status } = await API.put(`orders/order-update/${order.pk}/`, { delivery_price: order.delivery_price || 0, order_status: order.order_status, items: order.items && [...order.items].map(ele => ({ pk: ele.pk, price_accepted_by_admin: ele.price_accepted_by_admin || ele.price, quantity_accepted_by_admin: ele.quantity_accepted_by_admin || ele.quantity })) })
             if (status === 200) {
-                console.log("اینجا یک پیام برای اپدیت موفق بزار")
+                mainContextValue?.onSuccess("سفارش بروز شد!")
             } else {
-                const e = data.error_des || data.detail || "خطا"
+                mainContextValue?.onError(status === 400 ? "داده های ارسالی نامعتبرند" : "خطای غیر منتظره")                
             }
             setIsSending(false)
         } catch (e) {
-            console.log(e)
+            mainContextValue?.onError("خطای غیر منتظره رخ داد!")
             setIsSending(false)
         }
     }, [])
 
-    const getOrderTotalPrice = (order) => {
+    const getOrderTotalPrice = (order: CustomerOrder) => {
         let result = 0
-        order.items.forEach(item => {
-            const quantity = item.quantity_accepted_by_admin || item.quantity
-            const price = item.price_accepted_by_admin || item.price
-            result += (parseInt(quantity) * parseInt(price))
+        order.items?.forEach(item => {
+            const quantity = Number(item.quantity_accepted_by_admin || item.quantity) || 0
+            const price = Number(item.price_accepted_by_admin || item.price)
+            result += (quantity * price)
         });
-        const finalResult = parseInt(result) + (parseInt(order.delivery_price) || 0)
+        const finalResult = result + (Number(order.delivery_price) || 0)
         return finalResult
     }
 
@@ -162,7 +173,7 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
                             {order.fname} {order.lname}  {customer?.store_name ? `(${customer.store_name})` : ''}
                         </div>
                         <div className="text-slate-500 font-mono text-[11px]">
-                            📱 {toPersianDigits(customer?.phone - order.phone)} {customer?.telephone ? `| ☎️ ${toPersianDigits(customer?.telephone)}` : ''}
+                            📱 {toPersianDigits(customer?.phone || order.phone || "") || ""}
                         </div>
                         <div className="text-slate-400 text-[10px] truncate max-w-xs">
                             📍 {order.province?.name || ""} - {order.city?.name || ""} - {order.address}
@@ -230,9 +241,9 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {order.items.map((item, idx) => {
-                                const approvedQty = item.quantity_accepted_by_admin || item.quantity;
-                                const approvedPrice = item.price_accepted_by_admin || item.price;
+                            {order.items?.map((item, idx) => {
+                                const approvedQty = Number(item.quantity_accepted_by_admin || item.quantity) || 0;
+                                const approvedPrice = Number(item.price_accepted_by_admin || item.price) || 0;
                                 const lineTotal = approvedQty * approvedPrice;
 
                                 return (
@@ -246,7 +257,7 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
                                             </span>
                                         </td>
                                         <td className="p-2.5 text-center font-bold text-slate-500">
-                                            {toPersianDigits(item.quantity)} عدد
+                                            {toPersianDigits(Number(item.quantity) || 0)} عدد
                                         </td>
                                         <td className="p-2.5 text-center">
                                             <input
@@ -263,10 +274,10 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
                                             />
                                         </td>
                                         <td className="p-2.5 font-mono text-slate-400">
-                                            {formatPrice(item.product?.price ? item.product.price * (100 - item.product.off) :  0, storeSettings.currencyUnit)  || "محصول یافت نشد"}
+                                            {formatPrice(item.product?.price ? item.product.price * (100 - (Number(item.product.off)) || 0) : 0, storeSettings.currencyUnit) || "محصول یافت نشد"}
                                         </td>
                                         <td className="p-2.5 font-mono text-slate-400">
-                                            {formatPrice(item.price, storeSettings.currencyUnit)}
+                                            {formatPrice(Number(item.price), storeSettings.currencyUnit)}
                                         </td>
                                         <td className="p-2.5">
                                             <input
@@ -290,7 +301,7 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
                                                 if (ele.pk !== order.pk) {
                                                     return ele
                                                 }
-                                                ele.items = [...ele.items].filter(orderItem => orderItem.pk !== item.pk)
+                                                ele.items = ele.items && [...ele.items].filter(orderItem => orderItem.pk !== item.pk)
                                                 return ele
                                             }))}>
                                                 <Trash2 color='red' />
@@ -308,7 +319,7 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
                             تصویر رسید :
                         </span>
                         {order.payment_image ? <a href={order.payment_image} className="h-full">
-                            <img src={order.payment_image}  alt="" />
+                            <img src={order.payment_image} alt="" />
                         </a> : "تصویری ثبت نشده است"}
                     </div>
                 }
@@ -341,10 +352,9 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
                             value={order.delivery_price || ""}
                             onChange={(e) => {
                                 const val = e.target.value;
-                                console.log(e.target.value)
                                 const onlyNumbers = val.replace(/\D/g, "")
 
-                                setOrders(prev => (prev.map(o => o.pk === order.pk ? { ...o, delivery_price: onlyNumbers || 0 } : o)));
+                                setOrders(prev => ([...prev].map(o => o.pk === order.pk ? { ...o, delivery_price: Number(onlyNumbers) || 0 } : o)));
                             }}
                             placeholder="هزینه ارسال"
                             className="w-full bg-white text-xs p-2.5 rounded-xl border border-slate-300"
@@ -388,7 +398,7 @@ export default function OrderAdminContainer({ setOrders, user, storeSettings, or
                         setOrders={setOrders}
                         user={user}
                         currentUserName="مدیریت پشتیبانی"
-                        defaultExpanded={order.messages && order.messages.length > 0}
+                        defaultExpanded={order.order_tickets && order.order_tickets.length > 0}
                     />
                 </div>
             </div>}

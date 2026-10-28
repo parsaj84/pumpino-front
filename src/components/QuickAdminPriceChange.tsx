@@ -1,13 +1,16 @@
-import { Check, Edit3, Save, Trash2 } from "lucide-react";
-import { useDeferredValue, useEffect, useState } from "react";
+import { Check, Edit3,  Trash2 } from "lucide-react";
+import { useContext, useDeferredValue, useEffect, useState } from "react";
 import fetchData from "../utils/fetchData";
 import { formatPrice } from "../utils/formatters";
 import PaginationContainer from "./Pagintation";
 import API from "@/api/api";
 import Spinner from "./Spinner";
 import ProductSubmitAdminModal from "./ProductSubmitAdminModal";
+import { MainContext } from "../contexts/MainContext";
 
 export default function QuickAdminPriceChange({ brands, categories, storeSettings, setIsQuickBrandModalOpen, setIsQuickCategoryModalOpen }) {
+    const mainCotextValue = useContext(MainContext)
+
     const [searchQuery, setSearchQuery] = useState("")
     const deferedSearchQuery = useDeferredValue(searchQuery)
     const [filterState, setFilterState] = useState({
@@ -27,12 +30,11 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
             if (status === 200) {
                 setProducts(prev => [...prev].filter(p => p.pk !== product.pk))
             } else {
-                const e = data.error_des || data.detail || "error"
-                console.log(e)
+                mainCotextValue?.onError("خطا در فرایند پاک کردن محصول")
             }
             setDeletingProductPK(null)
         } catch (e) {
-            console.log(e)
+            mainCotextValue?.onError("خطا غیرمنتظره!")
             setDeletingProductPK(null)
 
         }
@@ -77,7 +79,6 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
             const { data, status } = response
             if (status === 200) {
                 setProducts(data.products)
-                console.log(data)
                 setPaginationState({
                     prevPage: data.previous_page,
                     nextPage: data.next_page,
@@ -85,18 +86,15 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                     allObjsCount: data.all_objs_count
                 })
             } else {
-                const e = "خطا"
-                console.log(e)
+                mainCotextValue?.onError("خطا در دریافت اطلاعات!")
             }
             setIsLoadingProducts(false)
-        }), () => setIsLoadingProducts(true))
+        }), () => setIsLoadingProducts(true), () => mainCotextValue?.onError("خطا در دریافت اطلاعات!"))
     }, [filterState])
 
 
     const [products, setProducts] = useState([])
-    const handleSaveQuickPrices = () => {
 
-    }
     const handleProductPriceChange = (productId, value) => {
         setProducts(prev => [...prev].map(product => {
             if (product.pk === productId) {
@@ -140,12 +138,11 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
 
             )
             if (status !== 200) {
-                const e = data.error_des || data.detail || "خطا"
-                console.log(e)
+                mainCotextValue?.onError(status === 400 ? mainCotextValue?.onError("لطفا اطلاعات را درست وارد کنید!") : mainCotextValue?.onError("خطا غیرمنتظره!"))
             }
             setUpdatingProductPK(null)
         } catch (e) {
-            console.log(e)
+            mainCotextValue?.onError("خطا غیرمنتظره!")
             setUpdatingProductPK(null)
 
         }
@@ -203,7 +200,7 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {products ? products.map(p => {
+                        {products.length !== 0 ? products.map(p => {
                             // const draft = draftPrices[p.id] || { price: p.priceToman, stock: p.stockStatus, qty: p.quantityInStock };
                             const isUpdating = updatingProductPK && updatingProductPK === p.pk
                             return (

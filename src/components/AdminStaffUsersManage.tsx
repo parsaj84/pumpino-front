@@ -1,55 +1,66 @@
-import { Dispatch, SetStateAction, useEffect, useState } from "react";
-import { AdminPermission, AdminUser, User, UserData } from "../types";
-import { ArrowRight, CheckCircle2, Edit3, KeyRound, Plus, Save, ShieldAlert, ShieldCheck, ShieldCheckIcon, Trash2, User as UserSVG, Users, X } from "lucide-react";
+import { Dispatch, SetStateAction, useContext, useEffect, useState } from "react";
+import { AdminPermission, AdminSubTab, User, UserData } from "../types";
+import {  ArrowRight, CheckCircle2, Edit3, KeyRound, Plus,    ShieldCheckIcon, Trash2, User as UserSVG, Users, X } from "lucide-react";
 import { toPersianDigits } from "../utils/formatters";
 import fetchData from "../utils/fetchData";
 import StaffCreateModal from "./StaffCreateUserModel";
 import Skeleton from "react-loading-skeleton";
 import API from "@/api/api";
 import Spinner from "./Spinner";
+import { MainContext } from "../contexts/MainContext";
+import compileErrorOBJToArray from "../utils/compileErrorsOBJToArray";
 
 interface AdminStaffUserManageProps {
     user: UserData;
     ALL_ADMIN_PERMISSIONS: { id: AdminPermission; title: string; desc: string }[];
-    setActiveAdminSubTab: Dispatch<SetStateAction<boolean>>
+    setActiveAdminSubTab: Dispatch<SetStateAction<AdminSubTab>>
 }
 
 export default function AdminStaffUsersManage({ user, ALL_ADMIN_PERMISSIONS, setActiveAdminSubTab }: AdminStaffUserManageProps) {
-    const [adminUsers, setAdminUsers] = useState<AdminUser[]>([])
+    const mainContextValue = useContext(MainContext)
+
+
+    const [adminUsers, setAdminUsers] = useState<User[]>([])
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
-    const [editingAdmin, setEditingAdmin] = useState(null)
+    const [editingAdmin, setEditingAdmin] = useState<null | User>(null)
     const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(true)
     const [successMsg, setSuccessMsg] = useState('');
     const [deletingUserPK, setDeletingUserPK] = useState<string | number | null>(null)
     useEffect(() => {
         fetchData("users/admin-staff-users/", ({ data, status }) => {
             if (status === 200) {
-                console.log(data)
+
                 setAdminUsers(data)
             } else {
                 const e = data.error_des || data.details || "خطای غیر منتظره"
-                console.log(e)
+
+                mainContextValue?.onError(typeof e === "object" ? mainContextValue.onError(compileErrorOBJToArray(e)?.join(",")) : e)
             }
             setIsLoadingAdminUsers(false)
-        }, () => setIsLoadingAdminUsers(true))
+        }, () => setIsLoadingAdminUsers(true), () => mainContextValue?.onError("خطایی رخ داده است!"))
     }, [])
 
-    const handleDeleteUser = async (adminUser: AdminUser): Promise<void | null> => {
+    const handleDeleteUser = async (adminUser: User): Promise<void | null> => {
         try {
+            if (!adminUser.pk) {
+                mainContextValue?.onError("ایدی یافت نشد")
+                return;
+            }
             setDeletingUserPK(adminUser.pk)
-            setTimeout(() => {} , 3000)
+            setTimeout(() => { }, 3000)
             const { data, status } = await API.delete("users/admin-user-delete/" + adminUser.pk + "/")
             if (status === 200) {
                 setAdminUsers(prev => [...prev].filter(ele => ele?.pk !== adminUser?.pk))
                 setSuccessMsg("حساب با موفقیت حذف شد!")
-                setTimeout(() => setSuccessMsg("") , 1500)
+                setTimeout(() => setSuccessMsg(""), 1500)
             } else {
                 const e = data.error_des || data.detail || "خطایی رخ داد!"
-                console.log(e)
+                mainContextValue?.onError(typeof e === "object" ? mainContextValue.onError(compileErrorOBJToArray(e)?.join(",")) : e)
+
             }
             setDeletingUserPK(null)
         } catch (e) {
-            console.log(e)
+            mainContextValue?.onError("خطایی غیر منتظره رخ داده است!")
             setDeletingUserPK(null)
 
         }
@@ -57,7 +68,7 @@ export default function AdminStaffUsersManage({ user, ALL_ADMIN_PERMISSIONS, set
 
     return (
         <div className="space-y-6 animate-fadeIn dir-rtl">
-            
+
             {/* Subtab Header */}
             <div className="bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 text-white rounded-3xl p-6 border border-purple-800/40 shadow-xl flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -138,7 +149,7 @@ export default function AdminStaffUsersManage({ user, ALL_ADMIN_PERMISSIONS, set
                     <div>
                         <span className="text-[11px] font-bold text-slate-500 block">مدیر آنلاین فعلی شما</span>
                         <span className="text-xs font-black text-slate-900 truncate block max-w-[200px]">
-                            {user.data.is_superuser ? "کاربر برتر" : "کاربر ادمین"}
+                            {user.data?.is_superuser ? "کاربر برتر" : "کاربر ادمین"}
                         </span>
                     </div>
                 </div>
@@ -201,7 +212,7 @@ export default function AdminStaffUsersManage({ user, ALL_ADMIN_PERMISSIONS, set
                     </div> : adminUsers.map((adminUser) => {
                         const isSuper = adminUser.is_superuser;
                         const isCurrent = user?.data?.pk === adminUser.pk;
-                        const isDeleting = (deletingUserPK && false) && deletingUserPK?.pk === adminUser.pk
+                        const isDeleting = (deletingUserPK && false) && deletingUserPK === adminUser.pk
 
                         return (
                             <div key={adminUser.pk} className="p-4 hover:bg-slate-50/80 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -225,7 +236,7 @@ export default function AdminStaffUsersManage({ user, ALL_ADMIN_PERMISSIONS, set
                                                 </span>
                                             )}
 
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${adminUser.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${adminUser.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                                                 }`}>
                                                 {adminUser.is_active ? 'فعال' : 'غیرفعال'}
                                             </span>
@@ -271,18 +282,18 @@ export default function AdminStaffUsersManage({ user, ALL_ADMIN_PERMISSIONS, set
                                     {!isCurrent && (
                                         <button
                                             type="button"
-                                            disabled={isDeleting}
+                                            disabled={isDeleting ? true : false}
                                             onClick={() => {
                                                 if (window.confirm("ایا از حذف این حساب اطمینان دارید؟")) {
-                                                   handleDeleteUser(adminUser)
+                                                    handleDeleteUser(adminUser)
 
-                                                    
+
                                                 }
                                             }}
                                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
                                             title="حذف مدیر"
                                         >
-                                            {isDeleting ? <Spinner width={17.5} height={17.5} borderMainColor={"white"} borderTopColor={"red"} borderWidth={1.75}/> :
+                                            {isDeleting ? <Spinner width={17.5} height={17.5} borderMainColor={"white"} borderTopColor={"red"} borderWidth={1.75} /> :
                                                 <Trash2 className="w-4 h-4" />
                                             }
                                         </button>
