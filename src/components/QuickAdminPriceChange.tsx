@@ -1,5 +1,5 @@
-import { Check, Edit3,  Trash2 } from "lucide-react";
-import { useContext, useDeferredValue, useEffect, useState } from "react";
+import { Check, Edit3, Trash2 } from "lucide-react";
+import { Dispatch, SetStateAction, useContext, useDeferredValue, useEffect, useState } from "react";
 import fetchData from "../utils/fetchData";
 import { formatPrice } from "../utils/formatters";
 import PaginationContainer from "./Pagintation";
@@ -7,28 +7,53 @@ import API from "@/api/api";
 import Spinner from "./Spinner";
 import ProductSubmitAdminModal from "./ProductSubmitAdminModal";
 import { MainContext } from "../contexts/MainContext";
+import { AdminContextValue, Brand, Category, Product, StoreSettings } from "../types";
+import Skeleton from "react-loading-skeleton";
+import { AxiosResponse } from "axios";
+import AdminContext from "../contexts/AdminContext";
 
-export default function QuickAdminPriceChange({ brands, categories, storeSettings, setIsQuickBrandModalOpen, setIsQuickCategoryModalOpen }) {
+
+interface QuickAdminPriceChangeProps {
+    brands: Brand[];
+    categories: Category[];
+    storeSettings: StoreSettings;
+    setIsQuickBrandModalOpen: Dispatch<SetStateAction<boolean>>;
+    setIsQuickCategoryModalOpen: Dispatch<SetStateAction<boolean>>;
+}
+
+
+
+export default function QuickAdminPriceChange({ brands, categories, storeSettings, setIsQuickBrandModalOpen, setIsQuickCategoryModalOpen }: QuickAdminPriceChangeProps) {
     const mainCotextValue = useContext(MainContext)
+    const adminContext = useContext<AdminContextValue>(AdminContext)
 
     const [searchQuery, setSearchQuery] = useState("")
     const deferedSearchQuery = useDeferredValue(searchQuery)
-    const [filterState, setFilterState] = useState({
+    const [filterState, setFilterState] = useState<{
+        selectedBrandPK: null | string | number;
+        selectedCategoryPK: null | string | number;
+        searchQuery: string;
+        page: number
+    }>({
         selectedBrandPK: null,
         selectedCategoryPK: null,
         searchQuery: "",
         page: 1
     })
 
-    const [deletingProductPK, setDeletingProductPK] = useState(null)
+    const [deletingProductPK, setDeletingProductPK] = useState<null | string | number>(null)
 
 
-    const handleDeleteProduct = async (product) => {
+    const handleDeleteProduct = async (product: Product) => {
         try {
             setDeletingProductPK(product.pk)
             const { data, status } = await API.delete("products/product-delete/" + product.pk?.toString() + "/")
             if (status === 200) {
                 setProducts(prev => [...prev].filter(p => p.pk !== product.pk))
+                if (adminContext.setProducts) {
+                    adminContext?.setProducts(prev => [...(prev || [])].filter(ele => ele.pk !== product.pk))
+                    
+                }
             } else {
                 mainCotextValue?.onError("خطا در فرایند پاک کردن محصول")
             }
@@ -41,10 +66,10 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
     }
 
     const [isProductModalOpen, setIsProductModalOpen] = useState(false)
-    const [editingProduct, setEditingProduct] = useState(null)
+    const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
     const [isLoadingProducts, setIsLoadingProducts] = useState(false)
-    const [updatingProductPK, setUpdatingProductPK] = useState(null)
+    const [updatingProductPK, setUpdatingProductPK] = useState<string | null | number>(null)
 
 
     const [pagintaionState, setPaginationState] = useState({
@@ -55,10 +80,10 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
 
     const compileFilterState = () => {
         const searchParams = new URLSearchParams()
-        searchParams.append("brandId", filterState.selectedBrandPK || "")
-        searchParams.append("categoryId", filterState.selectedCategoryPK || "")
+        searchParams.append("brandId", (filterState.selectedBrandPK || "").toString())
+        searchParams.append("categoryId", (filterState.selectedCategoryPK || "").toString())
         searchParams.append("searchQuery", filterState.searchQuery)
-        searchParams.append("page", filterState.page)
+        searchParams.append("page", filterState.page?.toString())
         return "?" + searchParams.toString()
     }
 
@@ -83,7 +108,6 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                     prevPage: data.previous_page,
                     nextPage: data.next_page,
                     numPages: data.num_pages,
-                    allObjsCount: data.all_objs_count
                 })
             } else {
                 mainCotextValue?.onError("خطا در دریافت اطلاعات!")
@@ -93,18 +117,18 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
     }, [filterState])
 
 
-    const [products, setProducts] = useState([])
+    const [products, setProducts] = useState<Product[]>([])
 
-    const handleProductPriceChange = (productId, value) => {
+    const handleProductPriceChange = (productId: string | number, value: string | number) => {
         setProducts(prev => [...prev].map(product => {
             if (product.pk === productId) {
-                product.price = value
+                product.price = Number(value)
             }
             return product
         }))
     }
 
-    const handleProductOffChange = (productId, value) => {
+    const handleProductOffChange = (productId: string | number, value: number) => {
 
         setProducts(prev => [...prev].map(product => {
             if (product.pk === productId) {
@@ -117,7 +141,7 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
 
 
 
-    const handleProductInventoryChange = (productId, value) => {
+    const handleProductInventoryChange = (productId: string | number, value: number) => {
         setProducts(prev => [...prev].map(product => {
             if (product.pk === productId) {
                 product.inventory = value
@@ -126,10 +150,10 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
         }));
     }
 
-    const handleProductUpdate = async (product) => {
+    const handleProductUpdate = async (product: Product) => {
         try {
             setUpdatingProductPK(product.pk)
-            const { data, status } = await API.put("products/product-dynamic-update/" + product.pk + "/?updating_fields=inventory,off,price"
+            const { data, status }: AxiosResponse = await API.put("products/product-dynamic-update/" + product.pk + "/?updating_fields=inventory,off,price"
                 , {
                     inventory: product.inventory,
                     off: product.off,
@@ -138,7 +162,7 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
 
             )
             if (status !== 200) {
-                mainCotextValue?.onError(status === 400 ? mainCotextValue?.onError("لطفا اطلاعات را درست وارد کنید!") : mainCotextValue?.onError("خطا غیرمنتظره!"))
+                mainCotextValue?.onError(status === 400 ? "لطفا اطلاعات را درست وارد کنید!" : "خطا غیرمنتظره!")
             }
             setUpdatingProductPK(null)
         } catch (e) {
@@ -162,7 +186,7 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                     />
 
                     <select
-                        value={filterState.selectedBrandPK}
+                        value={filterState.selectedBrandPK as (number | string)}
                         onChange={(e) => setFilterState(prev => ({ ...prev, selectedBrandPK: e.target.value }))}
                         className="bg-slate-50 text-xs p-2.5 rounded-xl border border-slate-300 cursor-pointer"
                     >
@@ -173,7 +197,7 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                     </select>
 
                     <select
-                        value={filterState.selectedCategoryPK}
+                        value={filterState.selectedCategoryPK as (number | string)}
                         onChange={(e) => setFilterState(prev => ({ ...prev, selectedCategoryPK: e.target.value }))}
                         className="bg-slate-50 text-xs p-2.5 rounded-xl border border-slate-300 cursor-pointer"
                     >
@@ -200,7 +224,38 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {products.length !== 0 ? products.map(p => {
+                        {isLoadingProducts ? (
+                            Array(6).fill({}).map(() => (
+                                <tr className="hover:bg-slate-50">
+                                    <td className="p-3 font-mono font-bold text-slate-600">
+                                        <Skeleton width={60} height={20} />
+                                    </td>
+                                    <td className="p-3 font-bold text-slate-900">
+                                        <Skeleton width={60} height={20} />
+                                    </td>
+                                    <td className="p-3 text-slate-600">
+                                        <Skeleton width={60} height={20} />
+                                    </td>
+                                    <td className="p-3">
+                                        <Skeleton width={60} height={20} />
+                                    </td>
+                                    <td className="p-3 text-slate-500 font-mono">
+                                        <Skeleton width={60} height={20} />
+                                    </td>
+                                    <td className="p-3">
+                                        <Skeleton width={60} height={20} />
+                                    </td>
+
+                                    <td className="p-3">
+                                        <Skeleton width={60} height={20} />
+                                    </td>
+                                    <td className="p-3 text-center flex items-center justify-center gap-1">
+                                        <Skeleton width={60} height={20} />
+                                    </td>
+                                </tr>
+                            ))
+
+                        ) : products.length !== 0 ? products.map(p => {
                             // const draft = draftPrices[p.id] || { price: p.priceToman, stock: p.stockStatus, qty: p.quantityInStock };
                             const isUpdating = updatingProductPK && updatingProductPK === p.pk
                             return (
@@ -221,7 +276,7 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                                         />
                                     </td>
                                     <td className="p-3 text-slate-500 font-mono">
-                                        {formatPrice(p.price * ((100 - p.off) / 100), storeSettings.currencyUnit)}
+                                        {formatPrice(p.price * ((100 - (Number(p.off) || 0)) / 100), storeSettings.currencyUnit)}
                                     </td>
                                     <td className="p-3">
                                         <input
@@ -259,7 +314,7 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                                             <Edit3 className="w-4 h-4" />
                                         </button>
                                         <button
-                                            disabled={deletingProductPK && deletingProductPK === p.pk}
+                                            disabled={deletingProductPK && deletingProductPK === p.pk ? true : false}
 
                                             onClick={() => handleDeleteProduct(p)}
                                             className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
@@ -269,7 +324,7 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                                                 (<Trash2 className="w-4 h-4" />)
                                             }
                                         </button>
-                                        <button onClick={() => handleProductUpdate(p)} disabled={isUpdating} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
+                                        <button onClick={() => handleProductUpdate(p)} disabled={isUpdating ? true : false} className="flex justify-around gap-1 p-1.5 bg-green-700 items-center  text-white rounded-md">
                                             {isUpdating ? <Spinner height={17.5} width={17.5} borderWidth={1.5} borderMainColor={"white"} borderTopColor={"green"} /> :
                                                 <>
                                                     <Check size={20} />
@@ -290,9 +345,8 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
             </div>
             {isProductModalOpen && editingProduct &&
                 <ProductSubmitAdminModal products={products} editingProduct={editingProduct} setIsQuickBrandModalOpen={setIsQuickBrandModalOpen} brands={brands} setProducts={setProducts} categories={categories} setEditingProduct={setEditingProduct} setIsProductModalOpen={setIsProductModalOpen} setIsQuickCategoryModalOpen={setIsQuickCategoryModalOpen} />
-
             }
-            <PaginationContainer productsCount={pagintaionState.allObjsCount} nextPage={pagintaionState.nextPage} pageNums={pagintaionState.numPages} prevPage={pagintaionState.prevPage} setFilterState={setFilterState} />
+            <PaginationContainer nextPage={pagintaionState.nextPage} pageNums={pagintaionState.numPages} prevPage={pagintaionState.prevPage} setFilterState={setFilterState} />
         </div>
     )
 } 

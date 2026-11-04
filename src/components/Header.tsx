@@ -3,7 +3,6 @@ import {
   ShoppingBag,
   SlidersHorizontal,
   Phone,
-  Clock,
   Zap,
   User,
   Package,
@@ -23,77 +22,72 @@ interface HeaderProps {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   quoteCount: number;
-  user : UserData;
-  setUser : Dispatch<SetStateAction<UserData>>
+  user: UserData;
+  setUser: Dispatch<SetStateAction<UserData>>
   customerProfile: CustomerProfile | null;
   storeSettings: StoreSettings;
   products: Product[];
   onOpenAuthModal: () => void;
   onOpenPwaGuide?: () => void;
-  isAuthorizing : boolean;
-  productsCount : number,
-  setIsEditProfileModalActive : Dispatch<SetStateAction<boolean>>
+  isAuthorizing: boolean;
+  productsCount: number,
+  setIsEditProfileModalActive: Dispatch<SetStateAction<boolean>>
 }
+
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   quoteCount,
   customerProfile,
-  storeSettings,
   onOpenAuthModal,
   onOpenPwaGuide,
   isAuthorizing,
   user,
-  productsCount,
-  setIsEditProfileModalActive,  
+  setIsEditProfileModalActive,
 }) => {
 
   return (
     <header className="bg-slate-900 text-slate-100 shadow-md border-b border-slate-800 sticky top-0 z-30 pt-safe">
       {/* Top Bar with Store Info */}
       <div className="bg-slate-950 text-slate-300 text-[11px] sm:text-xs py-1.5 px-3 sm:px-4 border-b border-slate-800/60">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap">
-            <span className="flex items-center gap-1 font-medium text-amber-400 shrink-0">
-              <Clock className="w-3 h-3" />
-              <span>قیمت‌ها: {toPersianDigits(storeSettings.lastUpdatedDate)}</span>
-            </span>
-            <span className="text-slate-700">|</span>
-            <a
-              href={`tel:${storeSettings.mobileNumber}`}
-              className="flex items-center gap-1 text-sky-300 font-bold hover:underline shrink-0"
-            >
-              <Phone className="w-3 h-3 text-sky-400" />
-              <span>تماس: {toPersianDigits(storeSettings.mobileNumber)}</span>
-            </a>
+
+          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="flex items-center gap-2 sm:gap-4  whitespace-nowrap">
+              <span
+                className="flex items-center gap-1 text-sky-300 font-bold hover:underline shrink-0"
+              >
+                <Phone className="w-3 h-3 text-sky-400" />
+                <span>تماس: {toPersianDigits(`02133953098 | 02133988231`)}</span>
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between md:justify-end gap-1.5 shrink-0">
+              {onOpenPwaGuide && (
+                <button
+                  type="button"
+                  onClick={onOpenPwaGuide}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition text-[11px] font-bold cursor-pointer border border-amber-500/30"
+                  title="راهنمای افزودن وب‌اپلیکیشن به صفحه اصلی گوشی"
+                >
+                  <Smartphone className="w-3 h-3 text-amber-400" />
+                  <span>نصب اپلیکیشن</span>
+                </button>
+              )}
+              {!isAuthorizing && user.isAuthenticated && (user.data?.is_admin || user.data?.is_staff || user.data?.is_superuser) && user.data?.is_active && (
+                <button
+                  onClick={() => setActiveTab(("admin"))}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300 border-2 border-red-500/20 transition text-[11px] font-medium cursor-pointer"
+                  title="ورود به ادمین"
+                >
+                  <User className="w-3 h-3" />
+                  <span>ورود به پنل ادمین</span>
+                </button>
+              )}
+
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {onOpenPwaGuide && (
-              <button
-                type="button"
-                onClick={onOpenPwaGuide}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition text-[11px] font-bold cursor-pointer border border-amber-500/30"
-                title="راهنمای افزودن وب‌اپلیکیشن به صفحه اصلی گوشی"
-              >
-                <Smartphone className="w-3 h-3 text-amber-400" />
-                <span>نصب اپلیکیشن</span>
-              </button>
-            )}
-            {!isAuthorizing && user.isAuthenticated && (user.data?.is_admin || user.data?.is_staff || user.data?.is_superuser) && user.data?.is_active && (
-              <button
-                onClick={() => setActiveTab(("admin"))}
-                className=" = sm:inline-flex items-center gap-1 px-3 py-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300 border-2 border-red-500/20 transition text-[11px] font-medium cursor-pointer"
-                title="خروجی اکسل"
-              >
-                <User className="w-3 h-3" />
-                <span>ورود به پنل ادمین</span>
-              </button>
-            )}
-
-          </div>
-        </div>
       </div>
 
       {/* Main Branding & Header Actions */}
@@ -148,9 +142,6 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <SlidersHorizontal className="w-4 h-4 text-sky-400" />
             <span>محصولات و کاتالوگ</span>
-            <span className="text-[10px] bg-slate-800/90 px-2 py-0.5 rounded-md text-slate-300 font-mono">
-              {toPersianDigits(productsCount)}
-            </span>
           </button>
 
           <button
@@ -193,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({
               : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
               }`}
           >
-            <PackageX  className="w-4 h-4 text-emerald-400" />
+            <PackageX className="w-4 h-4 text-emerald-400" />
             <span> درخواست های مرجوعی</span>
 
           </button>

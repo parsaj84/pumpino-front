@@ -16,7 +16,7 @@ import {
   CreditCard,
   Copy,
 } from 'lucide-react';
-import { CustomerOrder, StoreSettings, OrderStatus,  ReturnRequest, UserData, OrderItem } from '../types';
+import { CustomerOrder, StoreSettings, OrderStatus, ReturnRequest, UserData, OrderItem } from '../types';
 import { formatPrice, toPersianDigits } from '../utils/formatters';
 import { OrderTicketChat } from './OrderTicketChat';
 import API from '@/api/api';
@@ -29,7 +29,7 @@ import { MainContext } from '../contexts/MainContext';
 
 interface CustomerOrdersViewProps {
 
-  customerProfile?: UserData | null ;
+  customerProfile?: UserData | null;
   storeSettings: StoreSettings;
   onOpenPrintInvoice: (order: CustomerOrder) => void;
   onEditProfile: () => void;
@@ -74,10 +74,10 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
         if (status === 200) {
           setOrders(data)
         } else {
-          mainContextValue("خطا در دریافت اطلاعات")
+          mainContextValue?.onError("خطا در دریافت اطلاعات")
         }
         setFetchingOrders(false)
-      }, () => setFetchingOrders(true) , () => mainContextValue?.onError("خطا در دریافت داده "))
+      }, () => setFetchingOrders(true), () => mainContextValue?.onError("خطا در دریافت داده "))
     } else {
       setOrders([])
     }
@@ -85,11 +85,11 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
 
   const filteredOrders = useMemo(() => {
     return orders.filter(ele => {
-    if (selectedStatusTab === "all") {
-      return true
-    }
-    return ele.order_status === selectedStatusTab
-  })
+      if (selectedStatusTab === "all") {
+        return true
+      }
+      return ele.order_status === selectedStatusTab
+    })
   }, [selectedStatusTab, orders])
 
 
@@ -103,7 +103,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
 
 
 
-  const handleInvoiceGenerate = async (orderId : CustomerOrder["pk"]) => {
+  const handleInvoiceGenerate = async (orderId: CustomerOrder["pk"]) => {
     try {
       setOrderGeneratingInvoice(orderId)
       const response = await API.get(`orders/generate-order-invoice/${orderId?.toString()}/`, { responseType: "blob" })
@@ -118,7 +118,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
       setOrderGeneratingInvoice(null)
 
     } catch (e) {
-     mainContextValue?.onError("خطا در دریافت اطلاعات")
+      mainContextValue?.onError("خطا در دریافت اطلاعات")
     }
   }
 
@@ -182,7 +182,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
 
 
 
-  const getDeliveryTypeText = (deliveryType : CustomerOrder["delivery_type"]) => {
+  const getDeliveryTypeText = (deliveryType: CustomerOrder["delivery_type"]) => {
     switch (deliveryType) {
       case "MOTORCYCLE_COURIER":
         return "ارسال با پیک موتوری"
@@ -190,13 +190,13 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
         return "تحویل حضوری"
       case "PICK_UP_FROM_FREIGHT_TERMINAL":
         return "تحویل از باربری"
-      default :
+      default:
         return "ثبت نشده در برنامه"
     }
 
   }
 
-  const renderStatusStepper = (order : CustomerOrder) => {
+  const renderStatusStepper = (order: CustomerOrder) => {
     const status = order.order_status
 
 
@@ -394,7 +394,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
       )}
 
       {/* Status Filter Tabs */}
- 
+
       <div className="mx-6 flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto text-xs font-bold">
         <button
           onClick={() => setSelectedStatusTab('all')}
@@ -403,7 +403,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
         >
-          همه 
+          همه
         </button>
 
         <button
@@ -413,7 +413,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
             : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
             }`}
         >
-          در انتظار بررسی 
+          در انتظار بررسی
         </button>
 
         <button
@@ -423,7 +423,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
             : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
             }`}
         >
-          تایید شده توسط مدیر 
+          تایید شده توسط مدیر
         </button>
 
         <button
@@ -433,7 +433,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
             : 'bg-green-50 text-green-800 hover:bg-blue-100'
             }`}
         >
-          پرداخت شده 
+          پرداخت شده
         </button>
 
         <button
@@ -443,7 +443,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
             : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
             }`}
         >
-          ارسال‌شده 
+          ارسال‌شده
         </button>
 
         <button
@@ -453,7 +453,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
             : 'bg-teal-50 text-teal-800 hover:bg-teal-100'
             }`}
         >
-          تحویل‌شده 
+          تحویل‌شده
         </button>
         <button
           onClick={() => setSelectedStatusTab('REJECTED')}
@@ -462,10 +462,10 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
             : 'bg-red-50 text-red-800 hover:bg-teal-100'
             }`}
         >
-          لغو شده 
+          لغو شده
         </button>
       </div>
-  
+
 
       {/* Orders List */}
       <div className="p-6 pt-0 space-y-4">
@@ -528,7 +528,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                       <div className="text-left font-mono">
                         <span className="text-[10px] text-slate-400 block">مبلغ کل تایید شده توسط مدیر:</span>
                         <span className="text-sm font-extrabold text-sky-900">
-                          {order.admin_accepted_price ? formatPrice(Number(order.admin_accepted_price) , storeSettings.currencyUnit) : "هنوز توسط ادمین قیمتی تعیین نشده"}
+                          {order.admin_accepted_price ? formatPrice(Number(order.admin_accepted_price), storeSettings.currencyUnit) : "هنوز توسط ادمین قیمتی تعیین نشده"}
                         </span>
                       </div>
 
@@ -544,7 +544,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                       {/* Visual Status Stepper */}
                       {renderStatusStepper(order)}
 
-                    
+
 
                       {/* Order Shipping / Freight Details */}
                       <div className="bg-sky-50/60 p-3 rounded-xl border border-sky-100 flex flex-wrap items-center justify-between text-xs gap-2">
@@ -560,7 +560,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                             </span>
                           </>
                         )}
-  
+
                       </div>
 
                       {/* Table of Items */}
@@ -582,7 +582,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                           <tbody className="divide-y divide-slate-100">
                             {order.items?.map((item, idx) => {
                               const returnRequest = item.return_request || null;
-                              
+
                               return (
                                 <tr key={idx} className="hover:bg-slate-50">
                                   <td className="p-2.5 font-mono text-slate-400 font-bold">{idx + 1}</td>
@@ -594,7 +594,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                                     </span>
                                   </td>
                                   <td className="p-2.5 text-center font-bold text-slate-600">
-                                    {item.quantity ? toPersianDigits(item.quantity ) : "ثبت نشده"}
+                                    {item.quantity ? toPersianDigits(item.quantity) : "ثبت نشده"}
                                   </td>
                                   <td className="p-2.5 text-center font-extrabold text-sky-800 bg-sky-50/50">
                                     {item.quantity_accepted_by_admin ? toPersianDigits(item.quantity_accepted_by_admin) : "----"}
@@ -646,38 +646,35 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                                 <span className='text-bold text-sm text-white'>ثبت فیش واریزی</span>
                               </button>
                             </div>
-                      
-                            {/* {order.order_status === 'PENDING' && (
-                              <span className="bg-emerald-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
-                                <CheckCircle2 className="w-4 h-4" />
-                                <span> پرداخت شده</span>
-                              </span>
-                            )}
 
-                            {order.order_status === 'PENDING_BY_ADMIN' && (
-                              <span className="bg-amber-400 text-slate-950 font-extrabold text-xs px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm animate-pulse">
-                                <Clock className="w-4 h-4" />
-                                <span>در انتظار بررسی و تایید مدیریت</span>
-                              </span>
-                            )} */}
+
 
 
                           </div>
 
                           {/* Bank Cards Info Display */}
                           {(() => {
-                            const accounts = storeSettings.bankAccounts && storeSettings.bankAccounts.length > 0
-                              ? storeSettings.bankAccounts
-                              : [
-                                {
-                                  id: 'default',
-                                  bankName: storeSettings.bankName || 'بانک ملی ایران',
-                                  ownerName: storeSettings.bankOwnerName || 'بازرگانی صنعت آبرسان',
-                                  cardNumber: storeSettings.bankCardNumber || '۶۰۳۷-۹۹۷۵-۱۲۳۴-۵۶۷۸',
-                                  accountNumber: storeSettings.bankAccountNumber || '',
-                                  iban: storeSettings.bankIbanNumber || 'IR120170000000123456789001'
-                                }
-                              ];
+                            // const accounts = storeSettings.bankAccounts && storeSettings.bankAccounts.length > 0
+                            //   ? storeSettings.bankAccounts
+                            //   :
+                            const accounts = [
+                              {
+                                id: 'mellat',
+                                bankName: 'بانک ملت ایران',
+                                ownerName: 'علیرضا حسن زاده کلخوران',
+                                cardNumber: '6104-3311-2017-8943',
+                                accountNumber: '7589399480',
+                                iban: 'IR140120010000007589399480'
+                              },
+                              {
+                                id: 'melli',
+                                bankName: 'بانک ملی ایران',
+                                ownerName: "علیرضا حسن زاده",
+                                cardNumber: "6037-9981-8482-4182",
+                                accountNumber: '0236159032000',
+                                iban: "IR390170000000236159032000"
+                              }
+                            ];
 
                             return (
                               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
@@ -754,7 +751,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                           currentUserRole="customer"
                           page={"userOrders"}
                           user={customerProfile}
-                          currentUserName={((customerProfile?.data?.fname || "")+ (customerProfile?.data?.lname || "")) || 'خریدار'}
+                          currentUserName={((customerProfile?.data?.fname || "") + (customerProfile?.data?.lname || "")) || 'خریدار'}
                           setOrders={setOrders}
                           defaultExpanded={order.order_tickets && order.order_tickets?.length > 0}
                         />
@@ -763,7 +760,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                       {/* Bottom Actions */}
                       <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100">
                         <div className="text-xs text-slate-500">
-                          جمع کل نهایی فاکتور: <strong className="text-sky-900 font-mono text-sm">{order.price_accepted_by_admin ? formatPrice(Number(order.price_accepted_by_admin) , storeSettings.currencyUnit) : formatPrice(Number(order.total_items_price), storeSettings.currencyUnit) + "(تایید نشده)"}</strong>
+                          جمع کل نهایی فاکتور: <strong className="text-sky-900 font-mono text-sm">{order.price_accepted_by_admin ? formatPrice(Number(order.price_accepted_by_admin), storeSettings.currencyUnit) : formatPrice(Number(order.total_items_price), storeSettings.currencyUnit) + (order.order_status === "PENDING_BY_ADMIN" ? "(تاییده نشده)" : "")}</strong>
                         </div>
                         <div>
                           <button

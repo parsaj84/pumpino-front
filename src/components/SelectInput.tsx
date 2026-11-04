@@ -66,7 +66,7 @@ export default function SelectInput<T>({ items, label, isLoadingItems, labelProp
                         className={`w-full  cursor-pointer flex items-center justify-between bg-slate-50 text-slate-900 text-xs p-2.5  rounded-xl border  ${isActive && "ring-2 outline-none ring-sky-500 "} border-slate-300 transition  `}
                     >
                         {items?.length > 0 ? <>
-                            {selectedItem ? selectedItem && selectedItem[labelProperty] : "یک مورد را انتخاب کنید"}
+                            {items.find(ele => ele.selected) ? selectedItem && selectedItem[labelProperty] : "یک مورد را انتخاب کنید"}
                             <ChevronLeft style={{ transform: `rotate(${isActive ? "-90" : "0"}deg)` }} className="transition" width={30} />
                         </> : <span className="text-sm">
                             موردی برای نمایش وجود ندارد

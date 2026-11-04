@@ -65,9 +65,9 @@ export const QuoteCartModal: React.FC<QuoteCartModalProps> = ({
   const [freightError, setFreightError] = useState("")
 
   const [formConfig, setFormConfig] = useState<FormConfig[]>([
-    { code: "fname", isNumeric: false, label: "نام خریدار", required: true, regex: null, value: customerProfile?.data?.fname, error: "", help_placeholder: "نام" },
-    { code: "lname", isNumeric: false, label: "نام خانوادگی خریدار", required: true, regex: null, value: customerProfile?.data?.lname, error: "", help_placeholder: "نام خانوادگی" },
-    { code: "phone", isNumeric: true, label: "شماره تلفن خریدار", required: true, regex: /^(?:\+98|98|0)?9[0-9]{9}$/, value: customerProfile?.data?.phone, error: "", help_placeholder: "09100000000" },
+    { code: "fname", isNumeric: false, label: "نام خریدار", required: true, regex: null, value: customerProfile?.data?.fname || "", error: "", help_placeholder: "نام" },
+    { code: "lname", isNumeric: false, label: "نام خانوادگی خریدار", required: true, regex: null, value: customerProfile?.data?.lname || "", error: "", help_placeholder: "نام خانوادگی" },
+    { code: "phone", isNumeric: true, label: "شماره تلفن خریدار", required: true, regex: /^(?:\+98|98|0)?9[0-9]{9}$/, value: customerProfile?.data?.phone || "", error: "", help_placeholder: "09100000000" },
     { code: "address", isNumeric: false, label: "ادرس", required: true, regex: null, value: "", error: "", help_placeholder: "ادرس" },
 
   ])

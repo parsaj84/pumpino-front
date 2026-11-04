@@ -13,7 +13,7 @@ import {
   Package,
   Motorbike
 } from 'lucide-react';
-import { Product, StoreSettings, CustomerProfile, CustomerOrder, OrderItem, PaymentStatus, OrderStatus, Province, City, Freight } from '../types';
+import { Product, StoreSettings,  CustomerOrder, OrderItem, PaymentStatus, OrderStatus, Province, City, Freight } from '../types';
 import { formatPrice, toPersianDigits } from '../utils/formatters';
 import SelectInput from './SelectInput';
 import fetchData from '../utils/fetchData';
@@ -21,9 +21,9 @@ import Skeleton from 'react-loading-skeleton';
 import API from '@/api/api';
 import Spinner from './Spinner';
 import { MainContext } from '../contexts/MainContext';
+import { processPriceWithOff } from '../utils/mainUtils';
 
 interface CreateManualInvoiceModalProps {
-  products: Product[];
   orders: CustomerOrder[];
   storeSettings: StoreSettings;
   isOpen: boolean;
@@ -154,7 +154,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
       return;
     }
 
-    const off = itemDiscountPercent || selectedProduct.off
+    const off = itemDiscountPercent || 0
     const price = (itemPriceToman ? (Number(itemPriceToman) * ((100 - (off || 0)) / 100)) : (selectedProduct.price) * ((100 - (off || 0)) / 100));
     const qty = Math.max(1, itemQty);
     setInvoiceItems(prev => {
@@ -197,7 +197,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
       mainContextValue?.onError("ایدی ثبت نشده است!لطفا صفحه را رفرش کرده و دوباره ادامه دهید")
       return;
     }
-    setInvoiceItems(prev => prev.map((item) => itemProductId === item.product?.pk ? { ...item, price: Math.max(0, newPrice * ((100 - (Number(item.off) || 0)) / 100)), price_accepted_by_admin: Math.max(0, newPrice * ((100 - (Number(item.off) || 0)) / 100)) } : item));
+    setInvoiceItems(prev => prev.map((item) => itemProductId === item.product?.pk ? { ...item, price: processPriceWithOff(newPrice, item.off || 0), price_accepted_by_admin: Math.max(0, newPrice * ((100 - (Number(item.off) || 0)) / 100)) } : item));
   };
 
   // Calculations
@@ -217,7 +217,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
   }
 
 
-  const { priceWithOff, total } = useMemo(() => totalCalculator() , [
+  const { priceWithOff, total } = useMemo(() => totalCalculator(), [
     invoiceItems
   ])
   const discouted = total - priceWithOff
@@ -244,7 +244,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
       if (filterPayload.searchQuery) {
         const urlSearchParams = new URLSearchParams(filterPayload)
         fetchData("products/" + "?" + urlSearchParams.toString(), ({ data, status }) => {
-     
+
           if (status === 200) {
             if (page === 1) {
               setProductMatches(data.products)
@@ -258,7 +258,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
             mainContextValue?.onError("خطا در دریافت اطلاعات")
           }
 
-        }  , () => mainContextValue?.onError("خطا در دیافت اطلاعات"))
+        }, null, () => mainContextValue?.onError("خطا در دیافت اطلاعات"))
       }
     }, 750)
     return () => clearTimeout(timeOutId)
@@ -267,7 +267,10 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
 
   const handleSubmitInvoice = async () => {
     try {
-
+      setFormConfig(prev => [...prev].map(ele => ({ ...ele, error: "" })))
+      setProvinceError("")
+      setCityError("")
+      setFreightError("")
       if (invoiceItems.length === 0) {
         alert('لطفاً حداقل یک کالا به فاکتور اضافه نمایید.');
         return;
@@ -293,22 +296,25 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
       orderData["delivery_type"] = deliveryType
 
       if (deliveryType === "PICK_UP_FROM_FREIGHT_TERMINAL") {
-        if (!selectedCityId) {
+        orderData["province_id"] = provinces.find(ele => ele.selected)?.pk || ""
+        orderData["city_id"] = cities.find(ele => ele.selected)?.pk || ""
+        orderData["freight_id"] = filteredFreights.find(ele => ele.selected)?.pk || ""
+        if (!orderData["city_id"]) {
           isValid = false
           setCityError("مقدار این فیلد اجباری است.")
         }
-        if (!selectedProvinceId) {
+        if (!orderData["province_id"]) {
           isValid = false
           setProvinceError("مقدار این فیلد اجباری است.")
         }
-        if (!selectedFreightId && (filteredFreights?.find(ele => ele.selected))) {
+        if (!orderData["freight_id"]) {
           isValid = false
           setFreightError("مقدار این فیلد اجباری است.")
         }
-        orderData["freight_id"] = selectedFreightId || filteredFreights.find(ele => ele.selected)?.pk || ""
-        orderData["city_id"] = selectedCityId || ""
-        orderData["province_id"] = selectedProvinceId || ""
+
       }
+
+      console.log(filteredFreights.find(ele => ele.selected)?.pk, " from manual invoice")
 
       if (!isValid) {
         return;
@@ -330,11 +336,11 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
           setFormConfig(prev => [...prev].map(ele => {
             if (ele.code in data.error_des) {
               ele.error = data.error_des[ele.code]
-            } 
+            }
             return ele
           }))
         } else {
-            mainContextValue?.onError("خطایی غیرمنتظره رخ داد")
+          mainContextValue?.onError("خطایی غیرمنتظره رخ داد")
         }
       }
       setIsSending(false)
@@ -471,7 +477,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
                   </p>}
                 </div>
                 <div className="my-1">
-                  <SelectInput items={filteredFreights} label={"باربری"} selectedItem={filteredFreights.find(ele => ele.selected)} isLoadingItems={isLoadingFreghits} labelProperty={"name"} onItemSelected={item => setSelectedFreightId(item?.pk || null)} />
+                  <SelectInput items={filteredFreights} label={"باربری"} selectedItem={filteredFreights.find(ele => ele.selected)} isLoadingItems={isLoadingFreghits} labelProperty={"name"} onItemSelected={item => setSelectedFreightId(item?.pk)} />
                   {freightError && <p className='text-red-500 text-sm'>
                     {freightError}
                   </p>}
@@ -595,7 +601,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
                     type="number"
                     min={0}
                     max={100}
-                    value={itemDiscountPercent || selectedProduct.off}
+                    value={(itemDiscountPercent || 0) > 100 ? 0 : itemDiscountPercent}
                     onChange={(e) => setItemDiscountPercent(Number(e.target.value))}
                     className="w-full bg-white p-2 rounded-xl border border-sky-300 font-mono font-bold"
                   />
@@ -632,7 +638,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
               <tbody className="divide-y divide-slate-100">
                 {invoiceItems.length > 0 ? (
                   invoiceItems.map((item, idx) => {
-                    const lineFinal = (item?.price || 0) * (item?.price || 0)
+                    const lineFinal = (item?.price || 0)
 
 
 
@@ -656,7 +662,7 @@ export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> =
                         <td className="p-2.5">
                           <input
                             type="number"
-                            value={((item?.price || 0) * (1 / ((100 - (Number(item?.off) || 0)) / 100)))}
+                            value={parseInt(((item?.price || 0) * (1 / ((100 - (Number(item?.off) || 0)) / 100))))}
                             step={1000000}
                             onChange={(e) => handleUpdateItemPrice(item.product?.pk || null, Number(e.target.value))}
                             className="w-28 bg-slate-100 border border-slate-300 rounded-lg p-1 font-mono font-bold dir-ltr text-right"

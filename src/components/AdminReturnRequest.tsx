@@ -1,5 +1,5 @@
-import {  CheckCircle2, Edit2, FileSpreadsheet, PackageX, Save, Search } from "lucide-react";
-import {  useCallback, useContext, useDeferredValue, useEffect, useState } from "react";
+import { CheckCircle2, Edit2, FileSpreadsheet, PackageX, Save, Search } from "lucide-react";
+import { useCallback, useContext, useDeferredValue, useEffect, useState } from "react";
 import Spinner from "./Spinner";
 import Skeleton from "react-loading-skeleton";
 import { formatPrice, toPersianDigits } from "../utils/formatters";
@@ -26,7 +26,7 @@ interface AdminReturnRequest {
 
 export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest) {
     const mainContextValue = useContext(MainContext)
-    
+
     const [successMsg, setSuccessMsg] = useState("")
     const [isFetchingData, setIsFetchingData] = useState(false)
     const [isGeneratingExcel, setIsGeneratingExcel] = useState(false)
@@ -58,7 +58,6 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
     }, [])
 
 
-
     useEffect(() => {
         setFilterState(prev => ({ ...prev, searchQuery: deferredSearchQuery }))
     }, [deferredSearchQuery])
@@ -79,10 +78,10 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
 
                 } else {
                     const e = data.error_des || "خطا در پدازش داده"
-                    if (typeof e === "object" ) {
+                    if (typeof e === "object") {
                         mainContextValue?.onError(compileErrorOBJToArray(e)?.join(","))
                     }
-                
+
                 }
                 setIsFetchingData(false)
             }, () => setIsFetchingData(true), () => mainContextValue?.onError("خطایی رخ داده است"))
@@ -115,7 +114,7 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
                 mainContextValue?.onError(e)
             }
         } catch (e) {
-             mainContextValue?.onError("خطایی رخ داده اسست")
+            mainContextValue?.onError("خطایی رخ داده اسست")
         }
     }
 
@@ -130,11 +129,11 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
                 setTimeout(() => setSuccessMsg(""), 1000)
             } else {
                 const e = response.data.error_des || response.data.detail || "خطا"
-                if (typeof e === "object"){
-                mainContextValue?.onError(compileErrorOBJToArray(e)?.join(","))    
-                return ;
-            } 
-            mainContextValue?.onError("خطایی رخ داده است")
+                if (typeof e === "object") {
+                    mainContextValue?.onError(compileErrorOBJToArray(e)?.join(","))
+                    return;
+                }
+                mainContextValue?.onError("خطایی رخ داده است")
             }
             setEditingReturnRequest(null)
         } catch (e) {
@@ -246,7 +245,7 @@ export default function AdminReturnRequest({ storeSettings }: AdminReturnRequest
                         <div className="flex flex-wrap items-center gap-2">
                             <select
                                 value={filterState.status}
-                                onChange={(e) => setFilterState(prev => ({ ...prev, status: e.currentTarget.value }))}
+                                onChange={(e) => setFilterState(prev => ({ ...prev, status: e.target.value }))}
                                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 cursor-pointer"
                             >
                                 <option value="all">همه وضعیت ها</option>

@@ -1,12 +1,14 @@
 import API from "@/api/api";
 import { Check, CheckCircle2, ChevronLeft, ChevronRight, Download, Edit3, FileSpreadsheet, Image, Images, Layers, Plus, Trash2, Upload, Wrench, X } from "lucide-react";
-import { ChangeEvent, startTransition, SubmitEvent, useCallback, useContext, useDeferredValue, useEffect, useRef, useState } from "react";
+import { ChangeEvent, startTransition, SubmitEvent, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from 'xlsx';
 import Spinner from "./Spinner";
 import { formatPrice } from "../utils/formatters";
 import SelectInput from "./SelectInput";
-import { Brand, Category, Product, ProductFile, StoreSettings } from "../types";
+import { AdminContextValue, Brand, Category, Product, ProductFile, StoreSettings } from "../types";
 import { MainContext } from "../contexts/MainContext";
+import { Feature } from "motion";
+import AdminContext from "../contexts/AdminContext";
 
 
 interface ExcleProductImportProp {
@@ -17,6 +19,8 @@ interface ExcleProductImportProp {
 
 
 export default function ExcelProductImport({ storeSettings, brands, categories }: ExcleProductImportProp) {
+    const adminContextValue = useContext<AdminContextValue | null>(AdminContext)
+
     const compileCategories = useCallback(() => {
         return categories?.map(ele => ({ selected: false, data: ele }))
     }, [categories])
@@ -25,7 +29,6 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
     const [excelName, setExcelName] = useState("")
     const [successMsg, setSuccessMsg] = useState("")
     const [isSending, setIsSending] = useState<boolean>(false)
-    const [productType, setProductType] = useState<"pomp" | "part">("part")
     const [updatingProductPK, setUpdatingProductPK] = useState<number | null | string>(null)
     const [products, setProducts] = useState<Product[]>([])
     const [isBrandModalActive, setIsBrandModalActive] = useState<boolean>(false)
@@ -44,17 +47,22 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
     const [imagePayloads, setImagePayloads] = useState<({ file: File; altName: string; name: string; url?: string | ArrayBufffer | null })[]>([])
     const [categoryError, setCategoryError] = useState("")
     const [imageError, setImageError] = useState("")
-    const [features, setFeatures] = useState([])
+    const [features, setFeatures] = useState<Feature[]>([])
     const [feature, setFeature] = useState({ feature_name: "", feature_value: "" })
     const [featureEntryError, setFeatureEntryError] = useState("")
     const [isFeatureAddModalOpen, setIsFeatureAddModalOpen] = useState(false)
     const [featureError, setFeatureError] = useState("")
 
+    const compiledBrands = useMemo(() => {
+        return brands.map(ele => ({ ...ele, selected: ele.pk === selectedBrandPK }))
+    }, [brands, selectedBrandPK])
+
+
     const imageInputHandler = async (file: File) => {
         try {
             const fileReader = new FileReader()
             fileReader.addEventListener("load", (e) => {
-                setImagePayloads( prev => [...prev, {file : file , altName : file.name , name : file.name , url :e.target?.result}])
+                setImagePayloads(prev => [...prev, { file: file, altName: file.name, name: file.name, url: e.target?.result }])
             })
             fileReader.readAsDataURL(file)
         } catch (e) {
@@ -71,7 +79,6 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
 
     const selectedCategoriesRef = useRef<HTMLSelectElement>(null)
     const unSelectedCategoriesRef = useRef<HTMLSelectElement>(null)
-
 
 
 
@@ -187,16 +194,20 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
             if (brand) {
                 formData.append("brand_id", brand.pk)
             }
-            formData.append("off", ( Number(otherData.off) || 0)?.toString())
+            formData.append("off", (Number(otherData.off) || 0)?.toString())
             const { data, status } = await API.post("products/product-admin-submit/"
                 , formData
             )
             if (status === 200) {
                 setProducts(prev => [...prev].filter(ele => ele.pk !== productPK))
+                if (adminContextValue?.setProducts) {
+                    adminContextValue?.setProducts(prev => [...(prev || []), data.result])
+                }
 
             }
             else {
                 mainContextValue?.onError(status === 400 ? "داده ها معتبر نیستند" : "خطا غیرمنتظره")
+
             }
 
             setUpdatingProductPK(null)
@@ -231,7 +242,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
             }
 
 
-            const arrayBuffer : ArrayBuffer = await file?.arrayBuffer();
+            const arrayBuffer: ArrayBuffer = await file?.arrayBuffer();
 
             const workbook = XLSX.read(arrayBuffer, {
                 type: "array",
@@ -240,7 +251,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
 
             const excelData: Product[] = XLSX.utils.sheet_to_json(worksheet);
-            setProducts(excelData.map((ele, idx) => ({ ...ele, price : Number(ele.price) || 0, inventory : Number(ele.inventory) || 0 , weight : Number(ele.weight) | 0  ,off : Number(ele.off) || 0 ,product_type: (ele.product_type === "part" || ele.product_type === "pomp") ? ele.product_type : "pomp", pk: idx + 1 })))
+            setProducts(excelData.map((ele, idx) => ({ ...ele, price: Number(ele.price) || 0, inventory: Number(ele.inventory) || 0, weight: Number(ele.weight) | 0, off: Number(ele.off) || 0, product_type: (ele.product_type === "part" || ele.product_type === "pomp") ? ele.product_type : "pomp", pk: idx + 1 })))
             if (excelInputRef.current) {
                 excelInputRef.current.value = ""
             }
@@ -251,13 +262,13 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
         }
     }
 
-    const handleExcelUpload = (e : ChangeEvent<HTMLInputElement>) => {
+    const handleExcelUpload = (e: ChangeEvent<HTMLInputElement>) => {
         const files = e.currentTarget.files
         if (files?.length) {
-             const file = files[0]
+            const file = files[0]
             setExcelName(file.name)
         }
-        
+
     }
 
     const handleDownloadSampleExcel = () => {
@@ -482,8 +493,8 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
                                         <td className="p-3">
                                             <select className="p-1.5 bg-slate-200 rounded-xl " value={
                                                 p.product_type
-                                            } onChange={(e : ChangeEvent<HTMLSelectElement>) => {
-                                                handleProductTypeChange(p, e.currentTarget.value)
+                                            } onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                                                handleProductTypeChange(p, e.target.value)
                                             }}>
                                                 <option value="pomp">پمپ</option>
                                                 <option value="part">قطعه</option>
@@ -582,7 +593,7 @@ export default function ExcelProductImport({ storeSettings, brands, categories }
 
                         </div>
                         <div className="w-full ">
-                            <SelectInput items={brands} labelProperty={"name"} selectedItem={brands.find(ele => ele.pk === selectedBrandPK)} onItemSelected={(item: Brand) => setSelectedBrandPK(item.pk)} />
+                            <SelectInput items={compiledBrands} labelProperty={"name"} selectedItem={brands.find(ele => ele.pk === selectedBrandPK)} onItemSelected={(item: Brand) => setSelectedBrandPK(item.pk)} />
                         </div>
                         {brandError && <p className="text-red-600">
                             {brandError}

@@ -43,7 +43,7 @@ export const ProductCard = ({
       setIsTogglingCartStatus(true);
       const { data, status } = await API.post("cart/add-to-cart/", { product_id: product.pk });
       if (status === 200) {
-        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...prev.cart_items, data.cart_item] }))
+        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...(prev?.cart_items || []), data.cart_item] }))
       } else {
         mainContextValue?.onError("خطا در هنگام اضافه کردن محصول به سبد خرید")
       }
@@ -58,7 +58,7 @@ export const ProductCard = ({
       setIsTogglingCartStatus(true)
       const { status, data } = await API.post("cart/remove-cart-item/", { product_id: product.pk })
       if (status === 200 && data.success) {
-        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...prev.cart_items].filter(ele => !(ele.product_id === product.pk.toString())) }))
+        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...(prev?.cart_items || [])].filter(ele => !(ele.product_id === product.pk.toString())) }))
       } else {
         mainContextValue?.onError("خطا در هنگام حذف کردن محصول به سبد خرید")
 
@@ -108,7 +108,7 @@ export const ProductCard = ({
         <div className="w-24 h-24 rounded-xl bg-slate-100 border border-slate-200/80 overflow-hidden shrink-0 relative flex items-center justify-center shadow-inner">
           <img
             src={file ? file?.image : ""}
-            alt={file ? file?.alt_name : ""}
+            alt={file ? file?.alt_name : "پمپینو | مرجع فروش پمپ و ابزارالات"}
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
             loading="lazy"
 
@@ -182,16 +182,6 @@ export const ProductCard = ({
         </div>
 
         <div className="flex items-center gap-1.5">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleShareWhatsApp}
-            className="p-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl border border-emerald-200/80 transition cursor-pointer flex items-center gap-1 shadow-2xs"
-            title="ارسال مشخصات، قیمت و لینک کاتالوگ در واتساپ"
-          >
-            <MessageSquare className="w-4 h-4 text-emerald-600" />
-            <span className="text-[11px] font-bold text-emerald-800 hidden sm:inline">واتساپ</span>
-          </motion.button>
 
           <motion.button
             whileHover={{ scale: 1.03 }}

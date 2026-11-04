@@ -12,7 +12,7 @@ import {
   ArrowUpRight,
   Receipt
 } from 'lucide-react';
-import { CustomerTransaction, CustomerProfile, StoreSettings, TotalTransactionData, OrderItem, User as UserType, PaginationData } from '../types';
+import { StoreSettings, TotalTransactionData, User as UserType, PaginationData } from '../types';
 import { formatPrice, toPersianDigits } from '../utils/formatters';
 import Spinner from './Spinner';
 import fetchData from '../utils/fetchData';
@@ -32,11 +32,12 @@ interface CustomerTransactionsPanelProps {
 }
 interface TransactiosFilterState {
   searchQuery: string;
-  typeFilter: 'all' | 'receive' | 'pay';
+  typeFilter: 'all' | 'receive' | 'pay'
   page: number;
+  isManual: boolean
 }
 
-const STORAGE_KEY = 'pumpino_customer_transactions_v1';
+
 
 export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps> = ({
   storeSettings
@@ -49,10 +50,9 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
   const mainContextValue = useContext<MainContextValue>(MainContext)
 
 
-
-
   const [detailInspectingTransaction, setDetailInspectingTransaction] = useState<Transaction | null>(null)
   const [dateSelectValue, setDateSelectedValue] = useState<number>(30)
+  const [aggregationType, setAggregationType] = useState<"manual" | "orders">()
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [paginationData, setPaginationData] = useState<{
     prevPage: number | string | null;
@@ -74,8 +74,10 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
   const [filterState, setFilterState] = useState<TransactiosFilterState>({
     page: 1,
     searchQuery: "",
-    typeFilter: "all"
+    typeFilter: "all",
+    isManual: false
   })
+  const defferedTransactionFilterState = useDeferredValue(filterState)
   const [selectedReceiptImage, setSelectedReceiptImage] = useState<string | null>(null);
 
   const compileFilterStateToParams = useCallback(() => {
@@ -86,35 +88,12 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
     return searchParams.toString()
   }, [filterState])
 
-
-
-
-  // Form states for new transaction
-  const [formCustomerName, setFormCustomerName] = useState('');
-  const [formCustomerPhone, setFormCustomerPhone] = useState('');
-  const [formType, setFormType] = useState<'receive' | 'pay'>('receive');
-
-  const [formAmountToman, setFormAmountToman] = useState<number>(0);
-  const [formDate, setFormDate] = useState<string>(new Date().toLocaleDateString('fa-IR'));
-  const [formMethod, setFormMethod] = useState<CustomerTransaction['method']>('card_to_card');
-  const [formTrackingCode, setFormTrackingCode] = useState('');
-  const [formDescription, setFormDescription] = useState('');
-  const [formReceiptImage, setFormReceiptImage] = useState<string>('');
-
-
-
-
-
-
   const [viewMode, setViewMode] = useState<'ledger' | 'user_base'>('ledger');
-
-
 
   //loadings 
   const [isLoadingTotalTransactionsData, setIsLoadingTotalTransactionsData] = useState<boolean>(false)
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true)
-  const [isDeletingTransactionPK , setIsDeletingTransactionPK] = useState<Transaction["pk"] | null>()
-
+  const [isDeletingTransactionPK, setIsDeletingTransactionPK] = useState<Transaction["pk"] | null>()
 
   const [usersSerachQuery, setUsersSearchQuery] = useState("")
   const defferedUsersSearchQuery = useDeferredValue(usersSerachQuery)
@@ -164,7 +143,7 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
           })
         } else {
           const e = data.error_des || data.detail || "حطا"
-         mainContextValue?.onError(e)
+          mainContextValue?.onError(e)
         }
         setIsLoadingUsers(false)
       }, () => setIsLoadingUsers(true))
@@ -173,7 +152,8 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
 
   const handleProcessTransactionsData = async () => {
     try {
-      fetchData(`orders/admin-transaction-aggregation/?past_days=${dateSelectValue}`, ({ data, status }: {
+      const url = aggregationType === "manual" ? "orders/admin-manual-transactions-aggregation/" : "orders/admin-transaction-aggregation/"
+      fetchData(`${url}?past_days=${dateSelectValue}`, ({ data, status }: {
         data: {
           paid: number;
           recieved: number;
@@ -193,7 +173,10 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
           mainContextValue?.onError(e)
         }
         setIsLoadingTotalTransactionsData(false)
-      }, () => setIsLoadingTotalTransactionsData(true) , () => mainContextValue?.onError("خطا در دریافت اطلاعات"))
+      }, () => setIsLoadingTotalTransactionsData(true), () => {
+        mainContextValue?.onError("خطا در دریافت اطلاعات");
+        setIsLoadingTotalTransactionsData(false)
+      })
     } catch (e) {
       mainContextValue?.onError("خطا در دریافت اطلاعات")
     }
@@ -211,7 +194,7 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
     }
   }
 
-  
+
 
 
   const handleDeleteTransaction = async (id: string) => {
@@ -231,14 +214,11 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
 
       }
     } catch (e) {
-          mainContextValue?.onError("خطایی غیر منتطره رخ داد")
-        setIsDeletingTransactionPK(null)
-      
+      mainContextValue?.onError("خطایی غیر منتطره رخ داد")
+      setIsDeletingTransactionPK(null)
+
     }
   };
-
-
-
 
   useEffect(() => {
     const timeoutID = setTimeout(() => {
@@ -254,7 +234,8 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
 
   useEffect(() => {
     const searchParams = compileFilterStateToParams()
-    fetchData("orders/admin-transactions-list/?" + searchParams, ({ data, status }) => {
+    const url = defferedTransactionFilterState.isManual ? "orders/admin-manual-transactions-list/?" : "orders/admin-transactions-list/?"
+    fetchData(url + searchParams, ({ data, status }) => {
       if (status === 200) {
         setTransactions(data.result)
         setPaginationData({
@@ -267,10 +248,44 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
         mainContextValue?.onError(e)
       }
       setIsLoadingTransactions(false)
-    }, () => setIsLoadingTransactions(true) , () => mainContextValue?.onError("خطا در دیافت اطلاعات"))
-  }, [filterState])
+    }, () => setIsLoadingTransactions(true), () => mainContextValue?.onError("خطا در دیافت اطلاعات"))
+  }, [defferedTransactionFilterState])
 
 
+
+  const getTransactionTypeBange = useCallback((t: Transaction) => {
+    if (t.is_manual) {
+      switch (t.transaction_type) {
+        case "DEPOSIT":
+          return (<span className="bg-emerald-100 text-emerald-800 font-extrabold text-[11px] px-2.5 py-1 rounded-lg inline-flex items-center gap-1">
+            <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-600" />
+            <span>دریافت (+)</span>
+          </span>)
+
+
+        case "RECIEPTION":
+          return (<span className="bg-rose-100 text-rose-800 font-extrabold text-[11px] px-2.5 py-1 rounded-lg inline-flex items-center gap-1">
+            <ArrowUpRight className="w-3.5 h-3.5 text-rose-600" />
+            <span>پرداخت (-)</span>
+          </span>)
+      }
+    }
+    switch (t.transaction_type) {
+      case "PAYMENT":
+        return (<span className="bg-emerald-100 text-emerald-800 font-extrabold text-[11px] px-2.5 py-1 rounded-lg inline-flex items-center gap-1">
+          <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-600" />
+          <span>دریافت (+)</span>
+        </span>)
+
+
+      case "RETURN_PRICE":
+        return (<span className="bg-rose-100 text-rose-800 font-extrabold text-[11px] px-2.5 py-1 rounded-lg inline-flex items-center gap-1">
+          <ArrowUpRight className="w-3.5 h-3.5 text-rose-600" />
+          <span>پرداخت (-)</span>
+        </span>)
+    }
+
+  }, [])
 
 
   return (
@@ -298,6 +313,20 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
 
       {/* Financial Overview Summary Cards */}
       <div className='w-full flex items-baseline-last justify-start gap-1.5'>
+        <div className='flex flex-col gap-y-1.5 '>
+          <label className='font-bold' htmlFor="date-threshold-input">
+            تاریخ:
+          </label>
+          <select value={aggregationType} onChange={(e) => setAggregationType(e.target.value)} className='bg-slate-200 text-sm transition-colors   py-1.5 rounded-xl  px-3  focus:outline-0 focus:border-slate-400  border-2 border-slate-300 ' id='date-threshold-input'>
+            <option className='text-sm' value={"orders"}>
+              سفارشات و مرجوعی
+            </option>
+            <option className='text-sm' value={"manual"}>
+              ثبت دستی ادمین
+            </option>
+
+          </select>
+        </div>
         <div className='flex flex-col gap-y-1.5 '>
           <label className='font-bold' htmlFor="date-threshold-input">
             تاریخ:
@@ -420,18 +449,37 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
         <>
           {/* Search and Filters */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-            <div className="relative flex-1 min-w-[240px]">
-              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="جستجوی نام مشتری، شماره تماس، کد پیگیری"
-                className="w-full bg-white pr-9 pl-3 py-2 rounded-xl text-xs font-bold border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
-              />
-            </div>
+            {!filterState.isManual && (
+
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="جستجوی نام مشتری، شماره تماس، کد پیگیری"
+                  className="w-full bg-white pr-9 pl-3 py-2 rounded-xl text-xs font-bold border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
+              <select
+                onChange={(e) => {
+                  const value = e.target.value
+                  setFilterState(prev => ({
+                    ...prev,
+                    isManual: value === "manual"
+                  }))
+                }}
+                className='p-1 bg-white text-sm rounded-xl border border-gray-200' >
+                <option value="customer">
+                  ثبت مشتری(سفارشات مرجوعی)
+                </option>
+                <option value="manual">
+                  ثبت دستی
+                </option>
+              </select>
               <button
                 onClick={() => setFilterState(prev => ({ ...prev, typeFilter: "all" }))}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${filterState.typeFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 border border-slate-200'
@@ -455,6 +503,7 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
               >
                 پرداختی‌ها (-)
               </button>
+
             </div>
           </div>
 
@@ -507,7 +556,7 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
                         <td className="p-3 font-mono font-bold text-slate-400">{index + 1}</td>
                         <td className="p-3">
                           <div className="font-extrabold text-slate-900">
-                            {`${(t.user?.fname || t.user?.lname) ? (t.user.fname || "") + " " + (t.user.lname || "") : ""} `}
+                            {t.is_manual ? "ادمین" : `${(t.user?.fname || t.user?.lname) ? (t.user.fname || "") + " " + (t.user.lname || "") : ""} `}
 
                           </div>
                           {t.user?.phone && (
@@ -516,17 +565,7 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
                         </td>
 
                         <td className="p-3 text-center">
-                          {t.transaction_type === 'PAYMENT' ? (
-                            <span className="bg-emerald-100 text-emerald-800 font-extrabold text-[11px] px-2.5 py-1 rounded-lg inline-flex items-center gap-1">
-                              <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>دریافت (+)</span>
-                            </span>
-                          ) : (
-                            <span className="bg-rose-100 text-rose-800 font-extrabold text-[11px] px-2.5 py-1 rounded-lg inline-flex items-center gap-1">
-                              <ArrowUpRight className="w-3.5 h-3.5 text-rose-600" />
-                              <span>پرداخت (-)</span>
-                            </span>
-                          )}
+                          {getTransactionTypeBange(t)}
                         </td>
 
                         <td className="p-3 font-black text-sm font-mono text-slate-900">
@@ -539,48 +578,6 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
                             {getTransactionReason(t)}
                           </div>
                         </td>
-
-                        {/* <td className="p-3 max-w-xs space-y-1">
-                        {t.chequeDetails ? (
-                          <div className="bg-purple-50 p-2 rounded-xl border border-purple-200 text-[11px] space-y-1">
-                            {t.chequeDetails.sayadiId && (
-                              <div className="font-mono font-black text-purple-900 dir-ltr text-right">
-                                شناسه صیادی: {toPersianDigits(t.chequeDetails.sayadiId)}
-                              </div>
-                            )}
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-slate-700 font-bold">
-                              {t.chequeDetails.bankName && <span>بانک: {t.chequeDetails.bankName}</span>}
-                              {t.chequeDetails.chequeNumber && <span className="font-mono">چک #: {toPersianDigits(t.chequeDetails.chequeNumber)}</span>}
-                              {t.chequeDetails.dueDate && <span>سررسید: {toPersianDigits(t.chequeDetails.dueDate)}</span>}
-                              {t.chequeDetails.drawerName && <span>صادرکننده: {t.chequeDetails.drawerName}</span>}
-                            </div>
-                            {t.chequeDetails.status && (
-                              <div className="pt-0.5">
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${t.chequeDetails.status === 'cleared' ? 'bg-emerald-100 text-emerald-800' :
-                                  t.chequeDetails.status === 'bounced' ? 'bg-rose-100 text-rose-800' :
-                                    t.chequeDetails.status === 'deposited' ? 'bg-sky-100 text-sky-800' :
-                                      t.chequeDetails.status === 'returned' ? 'bg-amber-100 text-amber-800' :
-                                        'bg-purple-100 text-purple-900'
-                                  }`}>
-                                  {t.chequeDetails.status === 'cleared' ? 'پاس شده / وصول' :
-                                    t.chequeDetails.status === 'bounced' ? 'برگشتی' :
-                                      t.chequeDetails.status === 'deposited' ? 'واگذار به بانک' :
-                                        t.chequeDetails.status === 'returned' ? 'استرداد شده' :
-                                          'ثبت در سامانه صیاد'}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          t.trackingCode && (
-                            <div className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded inline-block mb-1">
-                              کد: {toPersianDigits(t.trackingCode)}
-                            </div>
-                          )
-                        )}
-                        <div className="text-slate-600 text-[11px] line-clamp-2">{t.description || 'بدون توضیحات'}</div>
-                      </td> */}
-
                         <td className='p-3 max-w-xs space-y-1 w-full flex justify-center items-center '>
                           <button onClick={() => {
                             setIsTransactionDetailModalOpen(true)
@@ -602,10 +599,10 @@ export const CustomerTransactionsPanel: React.FC<CustomerTransactionsPanelProps>
                             title="حذف تراکنش"
                           >
                             {isDeletingTransactionPK && isDeletingTransactionPK === t.pk ?
-                            <Spinner borderMainColor={"white"} borderTopColor={"red"} borderWidth={1.75} height={17.5} width={17.5} />
-                            : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
+                              <Spinner borderMainColor={"white"} borderTopColor={"red"} borderWidth={1.75} height={17.5} width={17.5} />
+                              : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
                           </button>
                         </td>
                       </tr>

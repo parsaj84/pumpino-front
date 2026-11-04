@@ -45,7 +45,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       setIsTogglingCartStatus(true);
       const { data, status } = await API.post("cart/add-to-cart/", { product_id: product?.pk.toString() || "" });
       if (status === 200) {
-        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...prev.cart_items, data.cart_item] }))
+        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...(prev?.cart_items || []), data.cart_item] }))
       } else {
         mainContextValue?.onError("خطا هنگام حذف از سبد خرید")
 
@@ -62,7 +62,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       setIsTogglingCartStatus(true)
       const { status, data } = await API.post("cart/remove-cart-item/", { product_id: product?.pk || "" })
       if (status === 200 && data.success) {
-        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...prev.cart_items].filter(ele => !(ele.product_id === product?.pk.toString())) }))
+        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...(prev?.cart_items || [])].filter(ele => !(ele.product_id === product?.pk.toString())) }))
       } else {
         mainContextValue?.onError("خطا در هنگام حذف از سبد خرید")
       }
@@ -126,7 +126,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   className="w-full sm:w-48 h-48 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center relative shadow-sm group"
                 >
                   <img
-                    src={firstFile ? firstFile.image : 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&auto=format&fit=crop&q=80'}
+                    src={firstFile ? firstFile.image : ""}
                     alt={firstFile ? firstFile.alt_name : "پمپینو | مرجع فروش پمپ و ابزارالات"}
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                   />
@@ -135,7 +135,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-sky-800 bg-sky-100 px-3 py-1 rounded-full border border-sky-200">
-                      برند: {brand.name} {`(${brand.country})`}
+                      برند: {brand?.name} {`(${brand?.country})`}
                     </span>
                     <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStockBadge(product.inventory > 0 ? true : false, product.inventory).colorClass}`}>
                       {getStockBadge(product.inventory > 0 ? true : false, product.inventory).label}
@@ -206,30 +206,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             </div>
 
             {/* Modal Actions Footer */}
-            <div className="bg-slate-100 p-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => window.open(generateWhatsAppShareUrl(product, storeSettings), '_blank')}
-                  className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer shadow-md"
-                  title="ارسال مشخصات، قیمت روز و لینک کاتالوگ آنلاین در واتساپ"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  <span>اشتراک در واتساپ</span>
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => window.open(generateTelegramShareUrl(product, storeSettings), '_blank')}
-                  className="px-3 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md"
-                >
-                  <Share2 className="w-4 h-4" />
-                  <span>تلگرام</span>
-                </motion.button>
-              </div>
-
+            <div className="bg-slate-100 p-4 border-t border-slate-200 flex flex-wrap items-center justify-end gap-3">
+           
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.96 }}

@@ -1,12 +1,13 @@
-import { ChangeEvent, Dispatch, SetStateAction, SubmitEvent,  useContext, useDeferredValue, useEffect, useRef, useState } from "react";
-import { CustomerOrder,  ReturnRequest, Transaction, User as UserType } from "../types";
+import { ChangeEvent, Dispatch, SetStateAction, SubmitEvent, useContext, useDeferredValue, useEffect, useRef, useState } from "react";
+import { CustomerOrder, ReturnRequest, Transaction, User as UserType } from "../types";
 import { formatPrice } from "../utils/formatters";
-import { ArrowDownLeft, ArrowUpRight, CheckCircle2, Package, PackageX, Phone, Receipt, Search, Upload, User, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ListOrdered, Package, PackageX, Receipt, Search, Upload, User, X } from "lucide-react";
 import Skeleton from "react-loading-skeleton";
 import fetchData from "../utils/fetchData";
 import { AxiosResponse } from "axios";
 import API from "@/api/api";
 import { MainContext, MainContextValue } from "../contexts/MainContext";
+import Spinner from "./Spinner";
 
 interface TransactionCreateModalProps {
     setIsModalOpen: Dispatch<SetStateAction<boolean>>
@@ -17,8 +18,12 @@ interface TransactionCreateModalProps {
 export default function TransactionCreateModal({ setIsModalOpen, setTransactions }: TransactionCreateModalProps) {
     const mainContextValue = useContext<MainContextValue>(MainContext)
 
+    const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const [transactionType, setTransactionType] = useState<Transaction['transaction_type']>("PAYMENT")
+    const [manualTransactionType, setManualTransactionType] = useState<"DEPOSIT" | "RECIEPTION">("DEPOSIT")
     const [price, setPrice] = useState<string | number>("")
 
 
@@ -98,10 +103,10 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
     useEffect(() => {
         const timeOutId = setTimeout(() => {
             if (orderSearchDefferedValue) {
-                const urlSearchParams = new URLSearchParams({ page: orderPage.toString(), search_query: orderSearchDefferedValue })
+                const urlSearchParams = new URLSearchParams({ page: orderPage.toString(), search: orderSearchDefferedValue })
                 fetchData("orders/orders-list/" + "?" + urlSearchParams.toString(), ({ data, status }) => {
                     if (status === 200) {
-                        if (userPage === 1) {
+                        if (orderPage === 1) {
                             setMatchedOrders(data.orders)
                             totalOrderPagesCount.current = data.page_nums?.length || null
                             return;
@@ -136,12 +141,12 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                 const urlSearchParams = new URLSearchParams({ page: orderPage.toString(), searchQuery: orderSearchDefferedValue })
                 fetchData("orders/admin-return-requests/" + "?" + urlSearchParams.toString(), ({ data, status }) => {
                     if (status === 200) {
-                        if (userPage === 1) {
-                            setMatchedReturnRequests(data.data)
-                            totalOrderPagesCount.current = data.num_pages?.length || null
+                        if (returnRequestsPage === 1) {
+                            setMatchedReturnRequests(data.result.data)
+                            totalReturnRequestPagesCount.current = data.result.num_pages?.length || null
                             return;
                         }
-                        setMatchedReturnRequests(prev => [...prev, ...data.data])
+                        setMatchedReturnRequests(prev => [...prev, ...data.result.data])
                     }
                     else {
                         mainContextValue?.onError("خطا در دریافت اطلاعات")
@@ -161,26 +166,41 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
     const [userError, setUserError] = useState("")
     const [returnRequestError, setReturnRequestError] = useState("")
     const [orderError, setOrderError] = useState("")
-
+    const [descriptionError, setDescriptionError] = useState("")
+    const [description, setDescription] = useState("")
 
     const handleCreateTransaction = async (e: SubmitEvent): Promise<void> => {
         try {
+            e.preventDefault()
             const formData = new FormData(e.target)
             const image: File | null = formData.get("image") as File
-            const maxSize = 1024 * 1024
+            const maxSize = 1024 * 1024 * 3
+
+            setUserError("")
+            setPriceError("")
+            setDescriptionError("")
+            setImageError("")
+            setReturnRequestError("")
+            setOrderError("")
+
+            if (!selectedUser) {
+                setUserError("لطفا کاربر را وارد کنید")
+                return;
+            }
+            if (!selectedUser.pk) {
+                setUserError("ایدی کاربر ثبت نشده است!لطفا بعدا تلاش کنید")
+                return;
+            }
 
             if (image && image.size >= maxSize) {
-                setImageError("حجم عکس بیش از حجم مجاز")
+                setImageError("حجم عکس بیش از حجم مجاز(3 مگ)")
                 return;
             }
             if (!price) {
                 setPriceError("لطفا مبلغ را وارد کنید")
                 return;
             }
-            if (!selectedUser) {
-                setUserError("لطفا کاربر را وارد کنید.")
-                return;
-            }
+
             if (transactionType === "RETURN_PRICE" && !selectedReturnRequest) {
                 setReturnRequestError("لطفا درخواست مرجوعی را انتخاب کنید!")
                 return;
@@ -189,6 +209,7 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                 setOrderError("لطفا سفارش را انتخاب کنید")
                 return;
             }
+            formData.set("user_id", selectedUser.pk.toString())
             formData.set(transactionType === "PAYMENT" ? "order_id" : "return_request_id", (transactionType === "PAYMENT" ? selectedOrder?.pk : selectedReturnRequest?.pk)?.toString() || "")
             const { data, status }: AxiosResponse = await API.post("orders/admin-transaction-create/", formData)
             if (
@@ -197,16 +218,53 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                 setTransactions(prev => [...prev, data.transaction])
                 setIsModalOpen(false)
             } else {
-                mainContextValue?.onError(status === 400 ? "داده ها معتبر نیستند" : "خطایی غیرمنتظره رخ داد")
+                
+                mainContextValue?.onError(status === 400 ? data.error_des.non_field_errors.at(0) || "خطایی رخ داده است": "خطایی غیرمنتظره رخ داد")
             }
         } catch (e) {
             mainContextValue?.onError("خطا غیرمنتظره در برقراری ارتباط با سرور")
         }
     }
 
+    const handleCreateManualTransaction = async (e: SubmitEvent): Promise<void> => {
+        try {
+            e.preventDefault()
+            setDescriptionError("")
+            setPriceError("")
+            setImageError("")
+            const formData = new FormData(e.target)
+            const image: File | null = formData.get("image") as File
+            const maxSize = 1024 * 1024 * 3
+            if (image && image.size >= maxSize) {
+                setImageError("حجم عکس بیش از حجم مجاز")
+                return;
+            }
+            if (!formData.get("price")) {
+                setPriceError("لطفا مبلغ را وارد کنید")
+            }
+            if (!formData.get("description")) {
+                setDescriptionError("لطفا توضیحات را برای ثبت دستی فاکتور وارد کنید")
+            }
+
+            setIsSubmitting(true)
+            const { data, status }: AxiosResponse = await API.post("orders/admin-manual-tranaction-create/", formData);
+            if (status === 200) {
+                setTransactions(prev => [...prev, data.transaction])
+                setIsModalOpen(false)
+            } else {
+                mainContextValue?.onError(status === 400 ? "خطایی رخ داده است" : "خطایی رخ داده است!")
+            }
+            setIsSubmitting(false)
+        } catch (e) {
+            mainContextValue?.onError("خطا غیرمنتظره در ساخت تراکنش")
+            setIsSubmitting(false)
+
+        }
+    }
+
     return (
         <div className="fixed inset-0  z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white max-h-100 overflow-auto rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative border border-slate-100">
+            <div className="bg-white max-h-150 overflow-auto rounded-3xl w-lg w-full p-6 space-y-5 shadow-2xl relative border border-slate-100">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
                         <Receipt className="w-5 h-5 text-sky-600" />
@@ -220,7 +278,7 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                     </button>
                 </div>
 
-                <form onSubmit={handleCreateTransaction} className="space-y-4 text-xs">
+                <form onSubmit={transactionType === "MANUAL_CREATE" ? handleCreateManualTransaction : handleCreateTransaction} className="space-y-4 text-xs">
                     {/* Type Selection */}
                     <div>
                         <label className="font-bold text-slate-700 block mb-1">نوع تراکنش مالی:</label>
@@ -248,14 +306,25 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                                 <ArrowUpRight className="w-4 h-4" />
                                 <span>پرداخت به مشتری (-)</span>
                             </button>
+                            <button
+                                type="button"
+                                onClick={() => setTransactionType('MANUAL_CREATE')}
+                                className={`py-2.5 rounded-xl col-[1/3] font-black transition flex items-center justify-center gap-1.5 border cursor-pointer ${transactionType === 'MANUAL_CREATE'
+                                    ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                                    : 'bg-slate-50 text-slate-700 border-slate-200'
+                                    }`}
+                            >
+                                <ListOrdered className="w-4 h-4" />
+                                <span>ساخت دستی برای هزینه متفرقه</span>
+                            </button>
                         </div>
                     </div>
 
-                    {/* Customer Name & Phone */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                    <div className="grid grid-cols-1  gap-3">
 
                         <div>
-                            <label className="font-bold text-slate-700 block mb-1">مبلغ تراکنش:</label>
+                            <label className="font-bold text-slate-700 block mb-1">مبلغ تراکنش(این مبلغ مقدم تر از مبلغ سفارش است):</label>
                             <input
                                 name="price"
                                 type="text"
@@ -274,83 +343,127 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                                 </p>
                             }
                         </div>
+                        <div>
+                            <label className="font-bold text-slate-700 block mb-1">توضیحات:</label>
+                            <input
+                                name="description"
+                                type="text"
+                                value={description}
+                                onChange={(e) => {
+                                    let value = e.target.value
+                                    setDescription(value);
+                                }}
+                                placeholder="توضیحات"
+                                className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
+                            />
+                            {descriptionError &&
+                                <p className="text-red-600">
+                                    {descriptionError}
+                                </p>
+                            }
+                        </div>
+                        {transactionType === "MANUAL_CREATE" && (
+                            <div>
+                                <label className="font-bold text-slate-700 block mb-1">مبلغ تراکنش:</label>
+                                <select
+                                    name="transaction_type"
+                                    value={manualTransactionType}
+                                    onChange={(e) => {
+                                        let value = e.target.value as ("DEPOSIT" | "RECIEPTION")
+                                        setManualTransactionType(value);
+                                    }}
 
+                                    className="w-full bg-slate-50 p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
+                                >
+                                    <option value="DEPOSIT">
+                                        برداشت از حساب شرکت
+                                    </option>
+                                    <option value="RECIEPTION">
+                                        واریز به حساب شرکت
+                                    </option>
+                                </select>
+
+                            </div>
+                        )}
                     </div>
 
 
-                    {/* Section 2: user Picker */}
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                        <h4 className="font-extrabold text-xs text-slate-900 flex items-center gap-2 border-b border-slate-200/80 pb-2">
-                            <User className="w-4 h-4 text-emerald-600" />
-                            <span>جستجو در کابران:</span>
-                        </h4>
 
-                        <div className="relative">
-                            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="جستجو در کاربران (نام ، نام خانوادگی و شماره تلفن)"
-                                value={userSearch}
-                                onChange={(e) => setUserSearch(e.target.value)}
-                                className="w-full pr-9 pl-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold focus:outline-none focus:border-sky-500"
-                            />
+                    {transactionType !== "MANUAL_CREATE" && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                            <h4 className="font-extrabold text-xs text-slate-900 flex items-center gap-2 border-b border-slate-200/80 pb-2">
+                                <User className="w-4 h-4 text-emerald-600" />
+                                <span>جستجو در کابران:</span>
+                            </h4>
 
-                            {/* Live Search Dropdown */}
-                            {matchedUsers.length > 0 && (
-                                <div
-                                    onScroll={(e) => {
-                                        if (userScrollEventTimeout.current) {
-                                            clearTimeout(userScrollEventTimeout.current)
-                                        }
-                                        const element = e.currentTarget
-                                        userScrollEventTimeout.current = setTimeout(() => {
-                                            if ((totalUserPagesCount.current && userPage >= totalUserPagesCount.current) || totalUserPagesCount.current === 1) {
-                                                return;
+                            <div className="relative">
+                                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="جستجو در کاربران (نام ، نام خانوادگی و شماره تلفن)"
+                                    value={userSearch}
+                                    onChange={(e) => setUserSearch(e.target.value)}
+                                    className="w-full pr-9 pl-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold focus:outline-none focus:border-sky-500"
+                                />
+
+                                {/* Live Search Dropdown */}
+                                {matchedUsers.length > 0 && (
+                                    <div
+                                        onScroll={(e) => {
+                                            if (userScrollEventTimeout.current) {
+                                                clearTimeout(userScrollEventTimeout.current)
                                             }
-                                            const { scrollHeight, offsetHeight, clientHeight } = element
-                                            const reachedThreshhold = (offsetHeight + clientHeight) >= (scrollHeight - 200)
-                                            if (reachedThreshhold) {
-                                                setUserPage(prev => prev + 1)
-                                            }
-                                        }, 1000)
-                                    }}
-                                    className="absolute top-full right-0 left-0 mt-1 bg-white border p-1.5 h-35 border-slate-200 rounded-2xl shadow-xl z-20 overflow-hidden divide-y divide-slate-100 max-h-60 overflow-y-auto">
-                                    {matchedUsers.map((u, idx) => (
-                                        <div
-                                            key={u.pk || idx}
-                                            onClick={() => {
-                                                setSelectedUser(u);
-                                                setUserSearch("")
-                                            }}
-                                            className="p-2.5 hover:bg-sky-50 transition cursor-pointer flex items-center justify-between text-xs"
-                                        >
-                                            <div>
-                                                <div className="font-bold text-slate-900">{(u.fname || u.lname) ? ((u.fname || "") + (u.lname || "")) : "ثبت نشده!"}</div>
-                                                <div className="text-[11px] text-slate-500 font-mono">شماره تلفن : {u.phone}</div>
-                                            </div>
-                                            {/* <div className="font-mono font-black text-sky-700">
+                                            const element = e.currentTarget
+                                            userScrollEventTimeout.current = setTimeout(() => {
+                                                if ((totalUserPagesCount.current && userPage >= totalUserPagesCount.current) || totalUserPagesCount.current === 1) {
+                                                    return;
+                                                }
+                                                const { scrollHeight, offsetHeight, clientHeight } = element
+                                                const reachedThreshhold = (offsetHeight + clientHeight) >= (scrollHeight - 200)
+                                                if (reachedThreshhold) {
+                                                    setUserPage(prev => prev + 1)
+                                                }
+                                            }, 1000)
+                                        }}
+                                        className="absolute top-full right-0 left-0 mt-1 bg-white border p-1.5 h-35 border-slate-200 rounded-2xl shadow-xl z-20 overflow-hidden divide-y divide-slate-100 max-h-60 overflow-y-auto">
+                                        {matchedUsers.map((u, idx) => (
+                                            <div
+                                                key={u.pk || idx}
+                                                onClick={() => {
+                                                    setSelectedUser(u);
+                                                    setUserSearch("")
+                                                }}
+                                                className="p-2.5 hover:bg-sky-50 transition cursor-pointer flex items-center justify-between text-xs"
+                                            >
+                                                <div>
+                                                    <div className="font-bold text-slate-900">{(u.fname || u.lname) ? ((u.fname || "") + (u.lname || "")) : "ثبت نشده!"}</div>
+                                                    <div className="text-[11px] text-slate-500 font-mono">شماره تلفن : {u.phone}</div>
+                                                </div>
+                                                {/* <div className="font-mono font-black text-sky-700">
                                                 {formatPrice(p.price * ((100 - (p.off || 0)) / 100), storeSettings.currencyUnit)}
                                             </div> */}
-                                        </div>
-                                    ))}
-                                    {(!totalUserPagesCount.current || userPage < totalUserPagesCount.current) && Array(2).fill({}).map(() => (<div
-                                        className='p-2.5 hover:bg-sky-50 transition cursor-pointer flex items-center justify-between text-xs'
+                                            </div>
+                                        ))}
+                                        {(!totalUserPagesCount.current || userPage < totalUserPagesCount.current) && Array(2).fill({}).map(() => (<div
+                                            className='p-2.5 hover:bg-sky-50 transition cursor-pointer flex items-center justify-between text-xs'
 
-                                    >
-                                        <div>
-                                            <Skeleton height={15} width={90} />
-                                            <Skeleton height={15} width={180} />
+                                        >
+                                            <div>
+                                                <Skeleton height={15} width={90} />
+                                                <Skeleton height={15} width={180} />
 
-                                        </div>
-                                        <div>
-                                            <Skeleton height={15} width={135} count={2} />
+                                            </div>
+                                            <div>
+                                                <Skeleton height={15} width={135} count={2} />
 
-                                        </div>
-                                    </div>))}
-                                </div>
-                            )}
+                                            </div>
+                                        </div>))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
+
                     {selectedUser && (
                         <div className="w-full p-3 flex items-center justify-between rounded-xl border-2 border-slate-100 bg-slate-50">
                             <div className="flex flex-col items-start ">
@@ -400,7 +513,7 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                                                 }
                                                 const element = e.currentTarget
                                                 orderScrollEventTimeout.current = setTimeout(() => {
-                                                    if ((totalOrderPagesCount.current && userPage >= totalOrderPagesCount.current) || totalOrderPagesCount.current === 1) {
+                                                    if ((totalOrderPagesCount.current && orderPage >= totalOrderPagesCount.current) || totalOrderPagesCount.current === 1) {
                                                         return;
                                                     }
                                                     const { scrollHeight, offsetHeight, clientHeight } = element
@@ -531,7 +644,6 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                                                 <div>
                                                     <Skeleton height={15} width={90} />
                                                     <Skeleton height={15} width={180} />
-
                                                 </div>
                                                 <div>
                                                     <Skeleton height={15} width={135} count={2} />
@@ -566,14 +678,15 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                     )}
                     {/* Receipt Image File Upload */}
                     <div>
-                        <label className="font-bold text-slate-700 block mb-1">تصویر فیش واریزی / برگه چک (اختیاری):</label>
+                        <label className="font-bold text-slate-700 block mb-1">تصویر مربوط به تراکنش</label>
                         <div className="flex items-center gap-3">
                             <label className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 rounded-xl font-bold cursor-pointer transition flex items-center gap-1.5">
                                 <Upload className="w-4 h-4 text-sky-600" />
                                 <span>انتخاب تصویر فیش</span>
                                 <input
+                                    ref={fileInputRef}
                                     type="file"
-                                    accept="image/*"
+                                    accept="image/jpeg , image/png"
                                     name="image"
                                     onChange={handleImageUpload}
                                     className="hidden"
@@ -588,6 +701,9 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                                         type="button"
                                         onClick={() => {
                                             setFormReceiptImage('');
+                                            if (fileInputRef.current) {
+                                                fileInputRef.current.value = ""
+                                            }
 
                                         }}
                                         className="text-rose-600 hover:text-rose-800 mr-1"
@@ -617,9 +733,14 @@ export default function TransactionCreateModal({ setIsModalOpen, setTransactions
                         </button>
                         <button
                             type="submit"
+                            disabled={isSubmitting}
                             className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black shadow-md"
                         >
-                            ثبت  تراکنش
+                            {isSubmitting ?
+                                <Spinner borderMainColor={"white"} borderTopColor={"blue"} borderWidth={1.75} height={17.5} width={17.5} />
+                                :
+                                "ثبت  تراکنش"
+                            }
                         </button>
                     </div>
                 </form>

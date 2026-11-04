@@ -10,7 +10,8 @@ import {
   CustomerOrder,
   UserData,
   CartData,
-  PaginationData
+  PaginationData,
+  AdminContextValue
 } from './types';
 import {
   loadStoreSettings,
@@ -40,7 +41,8 @@ import {
   User,
   Search,
   X,
-  Tag
+  Tag,
+  Package
 } from 'lucide-react';
 import API from '@/api/api';
 
@@ -53,6 +55,7 @@ import CustomerReturnRequests from './components/CustomerReturnRequests';
 import ErrorMessage from './components/ErrorMessage';
 import SuccessMessage from './components/successMessage';
 import { MainContext, MainContextValue } from './contexts/MainContext';
+import AdminContext from './contexts/AdminContext';
 
 
 export default function App() {
@@ -120,8 +123,6 @@ export default function App() {
       }
     } catch (e) {
       setIsAuthorizing(false)
-      setIsErrorAlertActive(true)
-      setErrorMsg("خطا در برقراری با سرور")
 
     }
   }
@@ -180,14 +181,7 @@ export default function App() {
     fetchData("cart/", (response) => {
       setCartData(response.data.empty_cart ? { post_price: 0, total_items_price: 0, cart_items: [] } : response.data)
       setIsCartLoading(false)
-    }, null, () => {
-      setIsErrorAlertActive(true)
-      setErrorMsg("خطا در برقراری ارتباط با سرور")
-      setTimeout(() => {
-        setIsErrorAlertActive(false)
-        setErrorMsg("")
-      }, 1500)
-    })
+    }, null, null)
   }, [])
 
   useEffect(() => {
@@ -312,6 +306,11 @@ export default function App() {
   }, [isEditProfileModalActive]);
 
   const userData = user.data
+
+  const adminContextValue = useMemo<AdminContextValue>(() => ({
+    setBrands: setBrands,
+    setProducts : setProducts
+  }), [])
 
   const MainContextValue = useMemo<MainContextValue>(() => {
     return {
@@ -551,21 +550,25 @@ export default function App() {
 
           {/* Tab 5: admin panel*/}
           {activeTab === 'admin' && (
-            <AdminPanel
-              products={products}
-              categories={categories}
-              setCategories={setCategories}
-              brands={brands}
-              setProducts={setProducts}
-              setBrands={setBrands}
-              isAdminLoggedIn={(userData?.is_active && (userData?.is_admin || userData?.is_superuser || userData?.is_staff)) ? true : false}
-              user={user}
-              setUser={setUser}
-              storeSettings={storeSettings}
-              onClose={() => setActiveTab('catalog')}
-              openPhoneAuthModal={() => setIsAuthModalOpen(true)}
-              onOpenPrintInvoiceForOrder={() => { }}
-            />
+            <AdminContext.Provider
+              value={adminContextValue}
+            >
+              <AdminPanel
+                products={products}
+                categories={categories}
+                setCategories={setCategories}
+                brands={brands}
+                setProducts={setProducts}
+                setBrands={setBrands}
+                isAdminLoggedIn={(userData?.is_active && (userData?.is_admin || userData?.is_superuser || userData?.is_staff)) ? true : false}
+                user={user}
+                setUser={setUser}
+                storeSettings={storeSettings}
+                onClose={() => setActiveTab('catalog')}
+                openPhoneAuthModal={() => setIsAuthModalOpen(true)}
+                onOpenPrintInvoiceForOrder={() => { }}
+              />
+            </AdminContext.Provider>
           )}
 
           {activeTab === "return_requests" &&
@@ -690,7 +693,7 @@ export default function App() {
             className={`flex flex-col items-center py-1 px-2 rounded-xl transition relative cursor-pointer ${activeTab === 'orders' ? 'text-emerald-400 font-black' : 'hover:text-slate-200'
               }`}
           >
-
+            <Package className="w-5 h-5 mb-0.5" />
             <span>سفارشات</span>
           </button>
 

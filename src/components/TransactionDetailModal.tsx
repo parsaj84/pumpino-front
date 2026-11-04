@@ -11,7 +11,7 @@ interface TransactionDetailModalProos {
 
 export default function TransactionDetailModal({ transaction, onClose }: TransactionDetailModalProos) {
     const user = transaction.user
-
+    const isManaul = transaction.is_manual
     const getTransactionReason = (transaction: Transaction) => {
         if (transaction.return_request) {
             return `مرجوعی کالا با کد درخواست ${transaction.return_request.pk}`
@@ -36,22 +36,24 @@ export default function TransactionDetailModal({ transaction, onClose }: Transac
                     </button >
                 </div>
                 <div className=" my-3 w-full ">
-                    <div className="w-full my-1 flex items-center justify-between gap-1.5">
-                        <div className="w-full text-center bg-slate-50 p-1.5 rounded-md " >
-                            نام و نام کاربری مشتری
+                    {!isManaul && (<>
+                        <div className="w-full my-1 flex items-center justify-between gap-1.5">
+                            <div className="w-full text-center bg-slate-50 p-1.5 rounded-md " >
+                                نام و نام کاربری مشتری
+                            </div>
+                            <div className="w-full text-center p-1.5 bg-gray-100 rounded-md">
+                                {`${(user?.fname || user?.lname) ? (user.fname || "") + " " + (user.lname || "") : ""} `}
+                            </div>
                         </div>
-                        <div className="w-full text-center p-1.5 bg-gray-100 rounded-md">
-                            {`${(user?.fname || user?.lname) ? (user.fname || "") + " " + (user.lname || "") : ""} `}
+                        <div className="w-full my-1 flex items-center justify-between gap-1.5">
+                            <div className="w-full text-center bg-slate-50 p-1.5 rounded-md " >
+                                شماره تلفن
+                            </div>
+                            <div className="w-full text-center p-1.5 bg-gray-100 rounded-md">
+                                {user?.phone}
+                            </div>
                         </div>
-                    </div>
-                    <div className="w-full my-1 flex items-center justify-between gap-1.5">
-                        <div className="w-full text-center bg-slate-50 p-1.5 rounded-md " >
-                            شماره تلفن
-                        </div>
-                        <div className="w-full text-center p-1.5 bg-gray-100 rounded-md">
-                            {user?.phone}
-                        </div>
-                    </div>
+                    </>)}
                     <div className="w-full my-1 flex items-center justify-between gap-1.5">
                         <div className="w-full text-center bg-slate-50 p-1.5 rounded-md " >
                             تاریخ ایجاد
@@ -60,22 +62,24 @@ export default function TransactionDetailModal({ transaction, onClose }: Transac
                             {transaction.date_created}
                         </div>
                     </div>
-                    <div className="w-full my-1 flex items-center justify-between gap-1.5">
-                        <div className="w-full text-center bg-slate-50 p-1.5 rounded-md " >
-                            دلیل
+             
+                        <div className="w-full my-1 flex items-center justify-between gap-1.5">
+                            <div className="w-full text-center bg-slate-50 p-1.5 rounded-md " >
+                                {isManaul ? "توضیحات" : "دلیل"}
+                            </div>
+                            <div className="w-full text-center p-1.5 bg-gray-100 rounded-md">
+                                {isManaul ? (transaction.description || "ثبت نشده") : getTransactionReason(transaction)}
+                            </div>
                         </div>
-                        <div className="w-full text-center p-1.5 bg-gray-100 rounded-md">
-                            {getTransactionReason(transaction)}
-                        </div>
-                    </div>
+
                     <div className="w-full flex  items-start my-1 justify-between gap-1.5">
 
                         <div className="w-full text-center bg-slate-50 p-1.5 rounded-md " >
                             عکس مربوط به مستندات
                         </div>
                         <div className="w-full text-center p-1.5 bg-gray-100 rounded-md">
-                            {transaction.document_file ?
-                                <img src={transaction.document_file} />
+                            {(transaction.image || transaction.document_file) ?
+                                <img src={isManaul ? transaction.image : transaction.document_file} />
                                 :
                                 <span className="font-semibold">
                                     ثبت نشده

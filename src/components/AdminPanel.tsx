@@ -7,7 +7,6 @@ import {
   Edit3,
   Upload,
   Percent,
-  RefreshCw,
   Store,
   CheckCircle2,
   AlertCircle,
@@ -53,6 +52,7 @@ import ExcelProductImport from './ExcelProductImport';
 import AdminReturnRequest from './AdminReturnRequest';
 import AdminStaffUsersManage from './AdminStaffUsersManage';
 import { MainContext } from '../contexts/MainContext';
+import CategoriesBrandsManage from './CategoriesMange';
 
 
 interface AdminPanelProps {
@@ -86,10 +86,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   user,
 
 }) => {
-
-
   const mainContextValue = useContext(MainContext)
-
 
   // const [orderAccordionHeight, setOrderAccordionHeight] = useState()
   const [pinInput, setPinInput] = useState('');
@@ -121,9 +118,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return () => clearTimeout(timeoutId)
   }, [deferedSearchQuery])
 
-
   const [activeAdminSubTab, setActiveAdminSubTab] = useState<AdminSubTab>('main_dashboard');
-
 
   //effects
   useEffect(() => {
@@ -180,16 +175,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     { id: 'seo', title: 'تنظیمات سئو و گوگل Search Console', desc: 'ویرایش کلیدواژه‌ها، متاتگ‌ها و اسکیماهای Google' },
   ];
 
-  const defaultSuperAdminUser: AdminUser = {
-    id: 'admin-super-1',
-    name: 'مدیر کل سیستم (Super Admin)',
-    pin: storeSettings.adminPin || '99001529',
-    role: 'super_admin',
-    roleTitle: 'مدیر ارشد کل',
-    permissions: ALL_ADMIN_PERMISSIONS.map(p => p.id),
-    isActive: true,
-    createdAt: '۱۴۰۴/۰۱/۰۱',
-  };
+
 
 
 
@@ -203,9 +189,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
 
 
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-  const [editingAdmin, setEditingAdmin] = useState<Partial<AdminUser> | null>(null);
-  const [showPinInTable, setShowPinInTable] = useState<Record<string, boolean>>({});
+
 
   const hasPermission = (perm: AdminPermission): boolean => {
     if (!isAdminLoggedIn) return false;
@@ -251,222 +235,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeAdminSubTab]);
-  const [selectedBrandFilter, setSelectedBrandFilter] = useState('all');
+
 
   // Quick Category Modal State
   const [isQuickCategoryModalOpen, setIsQuickCategoryModalOpen] = useState(false);
-  const [quickCatFarsi, setQuickCatFarsi] = useState('');
-  const [quickCatEng, setQuickCatEng] = useState('');
-  const [quickCatIsSpare, setQuickCatIsSpare] = useState(false);
-  const [quickCatDesc, setQuickCatDesc] = useState('');
 
   // Quick Brand Modal State
   const [isQuickBrandModalOpen, setIsQuickBrandModalOpen] = useState(false);
-  const [quickBrandFarsi, setQuickBrandFarsi] = useState('');
-  const [quickBrandEng, setQuickBrandEng] = useState('');
-  const [quickBrandCountry, setQuickBrandCountry] = useState('ایران');
+
 
 
   const handleSaveSettingsSubmit = () => {
 
   }
 
-  const [deletingCategoryPK, setDeletingCategoryPK] = useState<number | string | null>(null)
-  const handleDeleteCategory = async (catId: string) => {
-    try {
-      if (window.confirm('آیا از حذف این دسته‌بندی اطمینان دارید؟')) {
-        setDeletingCategoryPK(catId)
-        const { data, status } = await API.delete("products/admih-category-delete/" + catId + "/")
-        if (status === 200) {
-          setCategories(prev => [...(prev || [])].filter(cat => cat.pk !== catId))
-        } else {
-          const e = data.error_des || data.detail || "خطا"
-        }
-        setDeletingCategoryPK(null)
-        setSuccessMsg('دسته‌بندی با موفقیت حذف گردید.');
-        setTimeout(() => setSuccessMsg(''), 3000);
-      }
-    } catch (e) {
-      mainContextValue?.onError("خطای غیرمنتظه رخ داد")
-      setDeletingCategoryPK(null)
-    }
-  };
 
-  const [deletingBrandPK, setDeletingBrandPK] = useState<string | null | number>(null)
-  const handleDeleteBrand = async (brandId: string) => {
-    try {
-      if (window.confirm('آیا از حذف این برند اطمینان دارید؟')) {
-        setDeletingBrandPK(brandId)
-        const { data, status } = await API.delete("products/admih-brand-delete/" + brandId.toString() + "/")
-        if (status === 200) {
-          setBrands(prev => [...prev].filter(brand => brand.pk?.toString() !== brandId.toString()))
-          setSuccessMsg('برند با موفقیت حذف شد.');
-          setTimeout(() => setSuccessMsg(''), 3000);
-        } else {
-          const e = data.error_des || data.detail || "خطا غیر منتظره"
-          mainContextValue?.onError(e)
-        }
-        setDeletingBrandPK(null)
-      }
-    } catch (e) {
-      mainContextValue?.onError("خطایی غیر منتظره رخ داده است")
-      setDeletingBrandPK(null)
-    }
-  }
 
-  const [isSyncingOnline, setIsSyncingOnline] = useState(false);
 
-  const handleSaveOnlineToCpanel = async () => {
-    setIsSyncingOnline(true);
-    const payload = {
-      products,
-      categories,
-      brands,
-      storeSettings,
-      priceLogs,
-      orders
-    };
 
-    const res = await saveOnlineData(payload);
-    setIsSyncingOnline(false);
 
-    if (res.success) {
-      setSuccessMsg('تغییرات با موفقیت روی هاست cPanel ذخیره و به صورت آنلاین منتشر شد! اکنون تمام کاربران سایت کاتالوگ جدید را مشاهده می‌کنند.');
-      setTimeout(() => setSuccessMsg(''), 7000);
-    } else {
-      alert(res.message);
-    }
-  };
 
-  const handleDownloadDataJson = () => {
-    const payload = {
-      products,
-      categories,
-      brands,
-      storeSettings,
-      priceLogs,
-      orders,
-      lastUpdated: new Date().toISOString()
-    };
 
-    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
-      JSON.stringify(payload, null, 2)
-    )}`;
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', jsonString);
-    downloadAnchor.setAttribute('download', 'data.json');
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
 
-    setSuccessMsg('فایل data.json با موفقیت دانلود شد. این فایل را مستقیماً در File Manager هاست cPanel آپلود نمایید.');
-    setTimeout(() => setSuccessMsg(''), 6000);
-  };
 
-  const handleDownloadBackupJson = () => {
-    const backupData = {
-      exportDate: new Date().toISOString(),
-      exportDateShamsi: new Date().toLocaleDateString('fa-IR') + ' - ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
-      appName: 'Pumpino Database Backup',
-      version: '1.0',
-      summary: {
-        productsCount: products.length,
-        ordersCount: orders.length,
-        categoriesCount: categories.length,
-        brandsCount: brands.length,
-        priceLogsCount: priceLogs.length
-      },
-      storeSettings,
-      products,
-      categories,
-      brands,
-      orders,
-      priceLogs
-    };
 
-    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
-      JSON.stringify(backupData, null, 2)
-    )}`;
-    const downloadAnchor = document.createElement('a');
-    const fileName = `pumpino-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    downloadAnchor.setAttribute('href', jsonString);
-    downloadAnchor.setAttribute('download', fileName);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
 
-    setSuccessMsg('فایل پشتیبان کامل دیتابیس (JSON) با موفقیت دانلود شد.');
-    setTimeout(() => setSuccessMsg(''), 4000);
-  };
 
-  const handleDownloadInitialDataTs = () => {
-    const fileContent = `import { Product, Category, Brand, StoreSettings, PriceUpdateLog, CustomerOrder, SeoSettings } from '../types';
 
-export const INITIAL_SEO_SETTINGS: SeoSettings = ${JSON.stringify(storeSettings.seoSettings || INITIAL_SEO_SETTINGS, null, 2)};
 
-export const INITIAL_STORE_SETTINGS: StoreSettings = ${JSON.stringify(storeSettings, null, 2)};
-
-export const INITIAL_CATEGORIES: Category[] = ${JSON.stringify(categories, null, 2)};
-
-export const INITIAL_BRANDS: Brand[] = ${JSON.stringify(brands, null, 2)};
-
-export const INITIAL_PRODUCTS: Product[] = ${JSON.stringify(products, null, 2)};
-
-export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, null, 2)};
-`;
-
-    const blob = new Blob([fileContent], { type: 'text/typescript;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', url);
-    downloadAnchor.setAttribute('download', 'initialData.ts');
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    URL.revokeObjectURL(url);
-
-    setSuccessMsg('فایل کد داده‌های اولیه جدید (initialData.ts) دانلود شد! آن را در پوشه src/data جایگزین کنید و مجدداً npm run build بگیرید.');
-    setTimeout(() => setSuccessMsg(''), 6000);
-  };
-
-  const handleImportBackupJson = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const content = evt.target?.result as string;
-        const parsed = JSON.parse(content);
-
-        if (parsed.products && Array.isArray(parsed.products)) {
-          setProducts(parsed.products);
-        }
-        if (parsed.categories && Array.isArray(parsed.categories)) {
-          setCategories(parsed.categories);
-        }
-        if (parsed.brands && Array.isArray(parsed.brands)) {
-          setBrands(parsed.brands);
-        }
-        if (parsed.storeSettings) {
-          setStoreSettings(parsed.storeSettings);
-          setTempStoreSettings(parsed.storeSettings);
-        }
-        if (parsed.orders && Array.isArray(parsed.orders)) {
-          setOrders(parsed.orders);
-        }
-        if (parsed.priceLogs && Array.isArray(parsed.priceLogs)) {
-          setPriceLogs(parsed.priceLogs);
-        }
-
-        setSuccessMsg('اطلاعات پشتیبان با موفقیت بارگذاری و جایگزین گردید!');
-        setTimeout(() => setSuccessMsg(''), 5000);
-      } catch (err) {
-        alert('خطا در خوانی فایل پشتیبان JSON. لطفاً از صحت فایل اطمینان حاصل کنید.');
-      }
-    };
-    reader.readAsText(file);
-  };
 
 
 
@@ -580,128 +376,24 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
     }));
   };
 
-  const handleDeleteBankAccount = (id: string) => {
-    const current = getBankAccounts();
-    if (current.length <= 1) {
-      if (!window.confirm('آیا از پاک کردن تنها حساب بانکی ثبت شده اطمینان دارید؟')) return;
-    }
-    const updated = current.filter(acc => acc.id !== id);
-    setTempStoreSettings(prev => ({
-      ...prev,
-      bankAccounts: updated,
-      bankName: updated[0]?.bankName || '',
-      bankCardNumber: updated[0]?.cardNumber || '',
-      bankAccountNumber: updated[0]?.accountNumber || '',
-      bankIbanNumber: updated[0]?.iban || '',
-      bankOwnerName: updated[0]?.ownerName || ''
-    }));
-  };
 
 
 
-  const handleSaveSeoSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setStoreSettings(tempStoreSettings);
-    setSuccessMsg('تنظیمات سئو و الگوریتم گوگل با موفقیت ذخیره شد و در کل سایت اعمال گردید.');
-    setTimeout(() => setSuccessMsg(''), 4000);
-  };
 
-  const handleAddFaqItem = () => {
-    const currentFaqs = tempStoreSettings.seoSettings?.faqItems || INITIAL_SEO_SETTINGS.faqItems;
-    const newFaq: SeoFaqItem = {
-      id: `faq-${Date.now()}`,
-      question: 'سوال جدید درباره پمپ یا قطعات یدکی...',
-      answer: 'پاسخ کامل سوال جهت ایندکس در گوگل...'
-    };
-    setTempStoreSettings(prev => ({
-      ...prev,
-      seoSettings: {
-        ...INITIAL_SEO_SETTINGS,
-        ...prev.seoSettings,
-        faqItems: [...currentFaqs, newFaq]
-      }
-    }));
-  };
 
-  const handleUpdateFaqItem = (id: string, question: string, answer: string) => {
-    const currentFaqs = tempStoreSettings.seoSettings?.faqItems || INITIAL_SEO_SETTINGS.faqItems;
-    const updated = currentFaqs.map(item => item.id === id ? { ...item, question, answer } : item);
-    setTempStoreSettings(prev => ({
-      ...prev,
-      seoSettings: {
-        ...INITIAL_SEO_SETTINGS,
-        ...prev.seoSettings,
-        faqItems: updated
-      }
-    }));
-  };
 
-  const handleDeleteFaqItem = (id: string) => {
-    const currentFaqs = tempStoreSettings.seoSettings?.faqItems || INITIAL_SEO_SETTINGS.faqItems;
-    const updated = currentFaqs.filter(item => item.id !== id);
-    setTempStoreSettings(prev => ({
-      ...prev,
-      seoSettings: {
-        ...INITIAL_SEO_SETTINGS,
-        ...prev.seoSettings,
-        faqItems: updated
-      }
-    }));
-  };
 
-  const handleAddSeoCard = () => {
-    const currentCards = tempStoreSettings.seoSettings?.cards || INITIAL_SEO_SETTINGS.cards;
-    const newCard: SeoCardItem = {
-      id: `card-${Date.now()}`,
-      title: 'عنوان تجهیز جدید...',
-      description: 'توضیحات و کاربردهای این تجهیز برای موتورهای جستجو...'
-    };
-    setTempStoreSettings(prev => ({
-      ...prev,
-      seoSettings: {
-        ...INITIAL_SEO_SETTINGS,
-        ...prev.seoSettings,
-        cards: [...currentCards, newCard]
-      }
-    }));
-  };
 
-  const handleDeleteSeoCard = (id: string) => {
-    const currentCards = tempStoreSettings.seoSettings?.cards || INITIAL_SEO_SETTINGS.cards;
-    const updated = currentCards.filter(c => c.id !== id);
-    setTempStoreSettings(prev => ({
-      ...prev,
-      seoSettings: {
-        ...INITIAL_SEO_SETTINGS,
-        ...prev.seoSettings,
-        cards: updated
-      }
-    }));
-  };
 
-  const handleUpdateSeoCard = (id: string, title: string, description: string) => {
-    const currentCards = tempStoreSettings.seoSettings?.cards || INITIAL_SEO_SETTINGS.cards;
-    const updated = currentCards.map(c => c.id === id ? { ...c, title, description } : c);
-    setTempStoreSettings(prev => ({
-      ...prev,
-      seoSettings: {
-        ...INITIAL_SEO_SETTINGS,
-        ...prev.seoSettings,
-        cards: updated
-      }
-    }));
-  };
 
-  const handleResetSeoToDefault = () => {
-    if (window.confirm('آیا از بازنشانی کلیه متون سئو به حالت استاندارد پیش‌فرض مطمئن هستید؟')) {
-      setTempStoreSettings(prev => ({
-        ...prev,
-        seoSettings: INITIAL_SEO_SETTINGS
-      }));
-      setSuccessMsg('تنظیمات سئو به حالت اولیه بازگردانده شد.');
-      setTimeout(() => setSuccessMsg(''), 3000);
-    }
-  };
+
+
+
+
+
+
+
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -759,20 +451,12 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
     setIsProductModalOpen(true);
   };
 
-
-
-  const pendingOrdersCount = orders?.filter(o => o.status === 'pending').length;
-
-
-
-
-
   const bedges = useMemo(() => {
     return [
       {
         id: 'orders_manage' as const,
         title: 'مدیریت سفارشات و صدور فاکتور',
-        isPulse: pendingOrdersCount > 0,
+
         Icon: Package,
         bgClass: 'bg-gradient-to-br from-amber-500 via-amber-500 to-amber-600 text-slate-950 border-amber-300 shadow-amber-900/20',
       },
@@ -1514,7 +1198,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
 
                       <button
                         type="button"
-                        onClick={() => handleDeleteBankAccount(acc.id)}
+                        onClick={() => {}}
                         className="px-2.5 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 font-bold text-[11px] rounded-lg transition flex items-center gap-1 cursor-pointer"
                         title="حذف این حساب بانکی"
                       >
@@ -1617,87 +1301,9 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
                 </p>
               </div>
 
-              {/* Main One-Click Sync Action Card */}
-              <div className="bg-white p-4 rounded-xl border border-emerald-300 shadow-sm space-y-3">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <h5 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-                      <RefreshCw className={`w-4 h-4 text-emerald-600 ${isSyncingOnline ? 'animate-spin' : ''}`} />
-                      <span>روش اول (پیشنهادی): ذخیره و انتشار آنلاین مستقیم روی cPanel (یک کلیک)</span>
-                    </h5>
-                    <p className="text-xs text-slate-600">
-                      ارسال داده‌ها به <code className="font-mono bg-slate-100 px-1 rounded text-slate-800">/api.php</code> روی هاست. این دستور داده‌ها را داخل <code className="font-mono bg-slate-100 px-1 rounded text-slate-800">data.json</code> هاست ذخیره کرده و برای همه مراجعین آنی آپدیت می‌کند.
-                    </p>
-                  </div>
+  
 
-                  <button
-                    type="button"
-                    onClick={handleSaveOnlineToCpanel}
-                    disabled={isSyncingOnline}
-                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-xs shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>{isSyncingOnline ? 'در حال ارسال و ذخیره روی هاست...' : 'ذخیره و انتشار آنی روی هاست cPanel'}</span>
-                  </button>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                {/* Download data.json for cPanel File Manager */}
-                <div className="bg-white p-3.5 rounded-xl border border-sky-200 flex flex-col justify-between space-y-2">
-                  <div>
-                    <span className="font-extrabold text-xs text-slate-800 block mb-1">روش دوم: دانلود فایل data.json</span>
-                    <p className="text-[11px] text-slate-500">اگر به هر دلیلی PHP هاست غیرفعال بود، فایل <code className="font-mono">data.json</code> را دانلود کرده و مستقیماً در File Manager هاست آپلود کنید.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleDownloadDataJson}
-                    className="w-full py-2 px-3 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>دانلود فایل data.json</span>
-                  </button>
-                </div>
-
-                {/* Download Backup JSON */}
-                <div className="bg-white p-3.5 rounded-xl border border-sky-200 flex flex-col justify-between space-y-2">
-                  <div>
-                    <span className="font-extrabold text-xs text-slate-800 block mb-1">بازیابی / خروجی بکاپ JSON</span>
-                    <p className="text-[11px] text-slate-500">دریافت فایل پشتیبان مرورگر یا بازیابی کالاها در مرورگر دیگر.</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={handleDownloadBackupJson}
-                      className="py-1.5 px-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white font-bold text-[11px] shadow-sm transition flex items-center justify-center gap-1 cursor-pointer"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>دانلود بکاپ</span>
-                    </button>
-                    <label className="py-1.5 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] shadow-sm transition flex items-center justify-center gap-1 cursor-pointer text-center">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>بارگذاری</span>
-                      <input type="file" accept=".json" onChange={handleImportBackupJson} className="hidden" />
-                    </label>
-                  </div>
-                </div>
-
-                {/* Download initialData.ts for cPanel Build */}
-                <div className="bg-white p-3.5 rounded-xl border border-sky-200 flex flex-col justify-between space-y-2">
-                  <div>
-                    <span className="font-extrabold text-xs text-slate-800 block mb-1">دانلود کد اولیه (initialData.ts)</span>
-                    <p className="text-[11px] text-slate-500">دریافت فایل TypeScript برای قرار دادن در سورس برنامه‌نویسی جهت Build جدید.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleDownloadInitialDataTs}
-                    className="w-full py-2 px-3 rounded-lg bg-slate-600 hover:bg-slate-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span>دانلود initialData.ts</span>
-                  </button>
-                </div>
-              </div>
 
               {/* Step-by-step cPanel guide */}
               <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 text-xs space-y-2 text-slate-800 dir-rtl text-right">
@@ -1728,7 +1334,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
 
       {/* Sub Tab: SEO Content & Google Search Algorithm Management */}
       {activeAdminSubTab === 'seo' && (
-        <form onSubmit={handleSaveSeoSubmit} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-8">
+        <form onSubmit={() => {}} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-8">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
@@ -1743,7 +1349,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleResetSeoToDefault}
+                onClick={() => {}}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300 transition cursor-pointer"
               >
                 بازنشانی متون سئو
@@ -1926,7 +1532,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
 
               <button
                 type="button"
-                onClick={handleAddSeoCard}
+                onClick={() => {}}
                 className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
@@ -1944,7 +1550,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
                     {(tempStoreSettings.seoSettings?.cards || INITIAL_SEO_SETTINGS.cards).length > 1 && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteSeoCard(card.id)}
+                        onClick={() => {}}
                         className="text-rose-600 hover:text-rose-800 p-1 rounded-lg hover:bg-rose-50 cursor-pointer flex items-center gap-1 font-bold text-xs"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1958,7 +1564,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
                     <input
                       type="text"
                       value={card.title}
-                      onChange={(e) => handleUpdateSeoCard(card.id, e.target.value, card.description)}
+                      onChange={(e) => {}}
                       className="w-full bg-white p-2 rounded-xl border border-slate-300 font-bold"
                     />
                   </div>
@@ -1967,7 +1573,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
                     <textarea
                       rows={3}
                       value={card.description}
-                      onChange={(e) => handleUpdateSeoCard(card.id, card.title, e.target.value)}
+                      onChange={(e) => {}}
                       className="w-full bg-white p-2 rounded-xl border border-slate-300 leading-relaxed"
                     />
                   </div>
@@ -2051,7 +1657,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
 
               <button
                 type="button"
-                onClick={handleAddFaqItem}
+                onClick={() => {}}
                 className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
@@ -2068,7 +1674,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleDeleteFaqItem(faq.id)}
+                      onClick={() => {}}
                       className="text-rose-600 hover:text-rose-800 p-1 rounded-lg hover:bg-rose-50 cursor-pointer flex items-center gap-1 font-bold text-xs"
                       title="حذف این سوال"
                     >
@@ -2083,7 +1689,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
                       type="text"
                       required
                       value={faq.question}
-                      onChange={(e) => handleUpdateFaqItem(faq.id, e.target.value, faq.answer)}
+                      onChange={(e) => {}}
                       className="w-full bg-white p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
                     />
                   </div>
@@ -2094,7 +1700,7 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
                       rows={3}
                       required
                       value={faq.answer}
-                      onChange={(e) => handleUpdateFaqItem(faq.id, faq.question, e.target.value)}
+                      onChange={(e) => {}}
                       className="w-full bg-white p-2.5 rounded-xl border border-slate-300 text-slate-800 leading-relaxed"
                     />
                   </div>
@@ -2148,150 +1754,11 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
 
       {/* Sub Tab: Categories and Brands Management */}
       {activeAdminSubTab === 'categories_manage' && (
-        <div className="space-y-6">
-          {/* Top Banner */}
-          <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-slate-950 text-white p-6 rounded-3xl shadow-xl border border-indigo-800/60 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/30 text-indigo-300 border border-indigo-400/30 flex items-center justify-center font-bold shadow-inner">
-                <Layers className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-extrabold text-white">مدیریت دسته‌بندی‌ها و برندهای تجهیزات</h3>
-                <p className="text-xs text-indigo-200 mt-1">
-                  تعریف و دسته‌بندی تخصصی پمپ‌های صنعتی، خانگی و قطعات یدکی همراه با برندهای سازنده
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsQuickCategoryModalOpen(true)}
-                className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition flex items-center gap-2 shadow cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ ایجاد دسته‌بندی جدید</span>
-              </button>
-              <button
-                onClick={() => setIsQuickBrandModalOpen(true)}
-                className="px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-indigo-700/60 text-indigo-200 font-bold text-xs transition flex items-center gap-2 shadow cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ ایجاد برند جدید</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Categories List (2 Cols) */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-indigo-600" />
-                    <h4 className="font-extrabold text-sm text-slate-900">لیست دسته‌بندی‌های فعال ({toPersianDigits(categories.length)})</h4>
-                  </div>
-
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {categories.map((cat) => {
-                    const productCount = products.filter(p => {
-                      if (p.categories?.find(pCat => pCat.pk === cat.pk)) {
-                        return true
-                      }
-                      return false
-                    }).length;
-                    return (
-                      <div
-                        key={cat.pk}
-                        className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-indigo-300 transition space-y-2 flex flex-col justify-between"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2.5">
-                            <div className={`p-2 rounded-xl  'bg-indigo-100 text-indigo-800`}>
-                              <Package className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <h5 className="font-extrabold text-xs text-slate-900">{cat.name}</h5>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => handleDeleteCategory(cat.pk)}
-                            disabled={deletingCategoryPK ? deletingCategoryPK === cat.pk : false}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            title="حذف دسته‌بندی"
-                          >
-                            {deletingCategoryPK && deletingCategoryPK === cat.pk ? <Spinner width={15} height={15} borderMainColor={"gray"} borderTopColor={"red"} borderWidth={1.5} /> : <Trash2 className="w-4 h-4" />}
-
-                          </button>
-                        </div>
-
-
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-[11px]">
-
-                          <span className="font-extrabold text-slate-700 bg-white px-2 py-0.5 rounded-lg border border-slate-200 shadow-2xs">
-                            {toPersianDigits(productCount)} کالا
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Brands List (1 Col) */}
-            <div className="space-y-4">
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-indigo-600" />
-                    <h4 className="font-extrabold text-sm text-slate-900">برندها و سازندگان ({toPersianDigits(brands.length)})</h4>
-                  </div>
-                </div>
-
-                <div className="space-y-2.5">
-                  {brands.map((b) => {
-                    const count = products?.filter(p => {
-
-                      return p.brand?.pk.toString() === b.pk.toString()
-                    }).length || 0;
-                    return (
-                      <div
-                        key={b.pk}
-                        className="p-3 rounded-2xl border border-slate-200 bg-slate-50/60 hover:bg-white flex items-center justify-between transition"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-xs text-slate-900">{b.name}</span>
-                          </div>
-                          <span className="text-[10px] text-indigo-600 font-bold block mt-0.5">
-                            کشور سازنده: {b.country}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-extrabold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                            {toPersianDigits(count)} کالا
-                          </span>
-                          <button
-                            onClick={() => handleDeleteBrand(b.pk)}
-                            disabled={deletingBrandPK && deletingBrandPK === b.pk ? true : false}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
-                          >
-                            {deletingBrandPK && deletingBrandPK === b.pk ? <Spinner width={15} height={15} borderMainColor={"gray"} borderTopColor={"red"} borderWidth={1.5} /> : <Trash2 className="w-3.5 h-3.5" />}
-
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CategoriesBrandsManage
+        setIsQuickBrandModalOpen={setIsQuickBrandModalOpen}
+        setIsQuickCategoryModalOpen={setIsQuickCategoryModalOpen}
+        setSuccessMsg={setSuccessMsg}
+        />
       )}
 
       {/* Sub Tab: Admin Users & Role Permissions Management */}
@@ -2325,7 +1792,6 @@ export const INITIAL_PRICE_LOGS: PriceUpdateLog[] = ${JSON.stringify(priceLogs, 
 
       {/* Manual Invoice Issuance Modal */}
       <CreateManualInvoiceModal
-        products={products}
         orders={orders}
         storeSettings={storeSettings}
         isOpen={isManualInvoiceModalOpen}

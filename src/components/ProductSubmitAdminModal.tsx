@@ -88,13 +88,15 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
   const [deletingFilePK, setDeletingFilePK] = useState<number | string | null>(null)
   const [deletingFeaturePK, setDeletingFeaturePK] = useState<null | string | number>(null)
 
+  const [isSubmiting, setIsSubmiting] = useState(false)
+
   const compiledBrands = useMemo(() => {
     return brands.map(ele => {
       ele.selected = ele.pk === brandId
 
       return ele
     })
-  }, [brandId])
+  }, [brandId , brands])
 
 
   const handleEditingProductFeatureDelete = async (feature: ProductFeature) => {
@@ -174,38 +176,43 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
       return categories.map(ele => ({ selected: ids.find(id => ele.pk === id) ? true : false, data: ele }))
     }
     return categories?.map(ele => ({ selected: false, data: ele }))
-  }, [categories])
+  }, [categories , editingProduct ])
 
   const [categoriesData, setCategoriesData] = useState<{ selected: boolean, data: Category }[]>(compileCategories)
 
   useEffect(() => {
     setCategoriesData(compileCategories)
-  }, [])
+  }, [categories])
 
   const selectedCategoriesRef = useRef<HTMLSelectElement | null>(null)
   const unSelectedCategoriesRef = useRef<HTMLSelectElement | null>(null)
 
 
-  const selectedCategories = categoriesData.filter(ele => {
-    if (!ele.selected) {
-      return false
-    }
-    if (!ele.data?.name?.includes(deferedSelectedCategoriesSearchQuery)) {
-      return false;
-    }
-    return true
-  })
+  const selectedCategories = useMemo(() => {
+
+    return categoriesData.filter(ele => {
+      if (!ele.selected) {
+        return false
+      }
+      if (!ele.data?.name?.includes(deferedSelectedCategoriesSearchQuery)) {
+        return false;
+      }
+      return true
+    })
+  }, [categoriesData, deferedSelectedCategoriesSearchQuery])
 
 
-  const unSelectedCategories = categoriesData.filter(ele => {
-    if (ele.selected) {
-      return false
-    }
-    if (!ele?.data.name.includes(deferedUnSelectedCategoriesSearchQuery)) {
-      return false;
-    }
-    return true
-  })
+  const unSelectedCategories = useMemo(() => {
+    return categoriesData.filter(ele => {
+      if (ele.selected) {
+        return false
+      }
+      if (!ele?.data.name.includes(deferedUnSelectedCategoriesSearchQuery)) {
+        return false;
+      }
+      return true
+    })
+  }, [categoriesData, deferedUnSelectedCategoriesSearchQuery])
 
 
 
@@ -242,6 +249,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
       }
 
       const compiledFormConfig = formConfig.map(ele => {
+        ele.error = ""
         if (ele.required && !ele.value) {
           ele.error = "مقدار این فیلد اجباری است"
           isValid = false
@@ -273,6 +281,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
       formData.append("product_type", productType.find(ele => ele.selected)?.code || "pomp")
 
       if (isValid) {
+        setIsSubmiting(true)
         const { data, status } = await API.post(editingProduct?.pk ? `products/product-admin-update/${editingProduct?.pk}/` : "products/product-admin-submit/", formData)
         if (status === 200) {
           setIsProductModalOpen(false)
@@ -287,11 +296,13 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
             setProducts(prev => [...prev, data.result])
           }
         } else {
-          mainContextValue?.onError("خطا در دریافت اطلاعات از سرور")
+          mainContextValue?.onError("خطا!")
         }
+        setIsSubmiting(false)
       }
     } catch (e) {
-
+      mainContextValue?.onError("خطای غیرمنظره رخ داده است")
+      setIsSubmiting(false)
     }
   }
 
@@ -409,9 +420,11 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
                       selectedPks.push(ele.value.toString())
                     }
                   });
+                  console.log(selectedPks, categoriesData)
                   setCategoriesData(prev => [...prev].map(cat => {
 
                     if (selectedPks.includes(cat.data?.pk?.toString())) {
+                      cat.selected = true
                       return cat
                     }
 
@@ -500,7 +513,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
                     <span>آپلود عکس جدید</span>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg , image/png"
                       onChange={(e: ChangeEvent<HTMLInputElement>) => {
                         e.preventDefault()
                         const files = e.target.files
@@ -533,7 +546,6 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
                       </button>
                       <img
                         src={image.url as string}
-
                         alt="پیش‌نمایش"
                         className="w-full z-10 h-full object-cover"
                         onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
@@ -616,11 +628,19 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
               انصراف
             </button>
             <button
+              disabled={isSubmiting}
               type="submit"
               className="px-7 py-2.5 rounded-xl bg-sky-600 text-white font-extrabold hover:bg-sky-700 shadow flex items-center gap-2 cursor-pointer"
             >
-              <Save className="w-4 h-4" />
-              <span>ذخیره کالا در فروشگاه</span>
+              {
+                isSubmiting ?
+                  <Spinner width={17.5} height={17.5} borderMainColor={"white"} borderTopColor={"green"} borderWidth={1.75} />
+                  :
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>ذخیره کالا در فروشگاه</span>
+                  </>
+              }
             </button>
           </div>
         </form>

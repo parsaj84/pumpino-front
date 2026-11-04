@@ -111,7 +111,10 @@ export default function EditProfileModal({ setIsEditPhoneModalOpen, setIsActive,
                 if (status === 200) {
                     setUser({ isAuthenticated: true, data: data })
                 } else if (status === 400) {
-
+                    if (data.non_field_erros) {
+                        mainContextValue.onError(data.non_field_erros)
+                        
+                    }
                     setFormConfig(prev => [...prev].map(ele => {
 
                         if (Object.keys(data).includes(ele.code)) {

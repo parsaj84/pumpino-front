@@ -1,9 +1,11 @@
+import { Dispatch, SetStateAction } from "react";
+
 export type CategoryId = string;
 
 export interface Category {
   pk: CategoryId;
-  name: string
-}
+  name: string;
+  products_count ?: string | number | null}
 
 export interface PaginationData {
   prevPage: null | number;
@@ -15,6 +17,7 @@ export interface Brand {
   pk: string;
   name: string;
   country: string;
+  products_count : string | number | null
 }
 
 export interface TechnicalSpecs {
@@ -110,11 +113,17 @@ export interface Product {
   serial_number: string;
   product_type: "pomp" | "part";
   categories?: Category[]
-  brand?: Brand;
+  brand?: Brand | null;
   compatible_pomps?: Product[];
   item_total_price?: number;
   images?: ({ file: File; altName: string; name: string; url: string })[]
 
+}
+
+
+export interface AdminContextValue {
+  setBrands?: Dispatch<SetStateAction<Brand[]>>;
+  setProducts ?: Dispatch<SetStateAction<Product[] | null>>
 }
 
 
@@ -393,8 +402,11 @@ export interface Transaction {
   date_created: string;
   document_file?: string;
   return_request?: ReturnRequest;
-  transaction_type: "PAYMENT" | "RETURN_PRICE";
-  pk?: string | number
+  transaction_type: "PAYMENT" | "RETURN_PRICE" | "DEPOSIT" | "RECIEPTION";
+  pk?: string | number;
+  is_manual ?: boolean;
+  image : string;
+  description ?: string
 }
 
 export type AdminPermission =
