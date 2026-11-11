@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: Vazirmatn;
+  src: url(/assets/fonts/Vazir.woff);
+}
+
+
 @layer base {
   :root {
     --font-vazirmatn: 'Vazirmatn', 'Shabnam', 'Sahel', 'Noto Sans Arabic', 'IRANSans', system-ui, -apple-system, sans-serif;
@@ -10,7 +16,8 @@
 
 
 
-  html, body {
+  html,
+  body {
     font-family: var(--font-vazirmatn);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -22,13 +29,19 @@
     line-height: 1.6;
   }
 
-  *, ::before, ::after {
+  *,
+  ::before,
+  ::after {
     font-family: Vazirmatn;
     -webkit-tap-highlight-color: transparent;
   }
 
-  
-  button, input, select, textarea, optgroup {
+
+  button,
+  input,
+  select,
+  textarea,
+  optgroup {
     font-family: inherit !important;
   }
 
@@ -36,15 +49,18 @@
   body.font-vazirmatn {
     font-family: var(--font-vazirmatn) !important;
   }
+
   body.font-shabnam {
     font-family: var(--font-shabnam) !important;
   }
+
   body.font-sahel {
     font-family: var(--font-sahel) !important;
   }
 
   /* Prevent iPhone Safari auto-zoom on inputs by ensuring at least 16px font size on touch screens */
   @media (max-width: 768px) {
+
     input[type="text"],
     input[type="number"],
     input[type="tel"],
@@ -64,9 +80,11 @@
   .pb-safe {
     padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   }
+
   .mb-safe {
     margin-bottom: env(safe-area-inset-bottom, 0px);
   }
+
   .pt-safe {
     padding-top: env(safe-area-inset-top, 0px);
   }
@@ -75,14 +93,14 @@
 .pagintaion-btn {
   width: 30px;
   height: 30px;
-  border :2px solid #9999;
+  border: 2px solid #9999;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 10px;
   color: #444;
-  box-shadow: 0px 0px 0px 1.5px rgba(200 , 200 , 200 , 0.2);
-  margin : 0px 3px;
+  box-shadow: 0px 0px 0px 1.5px rgba(200, 200, 200, 0.2);
+  margin: 0px 3px;
 }
 
 .pagintaion-btn.active {
@@ -95,15 +113,35 @@
 .spinner {
   border-radius: 100%;
   border: 1.5px solid white;
-  animation: spin 1s ease-in-out  infinite;
+  animation: spin 1s ease-in-out infinite;
 }
 
 @keyframes spin {
-    from  { 
-      transform: rotate(0deg);
-    }
-     to {
-      transform: rotate(360deg);
-     }
+  from {
+    transform: rotate(0deg);
   }
 
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.range-thumb::-webkit-slider-thumb {
+  pointer-events: auto;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 9999px;
+  background: #3b82f6;
+  cursor: pointer;
+}
+
+.range-thumb::-moz-range-thumb {
+  pointer-events: auto;
+  height: 16px;
+  width: 16px;
+  border: none;
+  border-radius: 9999px;
+  background: #3b82f6;
+  cursor: pointer;
+}

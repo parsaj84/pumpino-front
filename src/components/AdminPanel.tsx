@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useDeferredValue, useEffectEvent, useMemo, Dispatch, SetStateAction, useContext } from 'react';
+import React, { useState, useEffect, useRef, useDeferredValue, useMemo, Dispatch, SetStateAction, useContext } from 'react';
 import {
   Lock,
   Save,
@@ -21,7 +21,6 @@ import {
   CircleDollarSign,
   AlertTriangle,
   FilePlus,
-  Download,
   Zap,
   ArrowRight,
   ShieldCheck,
@@ -53,6 +52,7 @@ import AdminReturnRequest from './AdminReturnRequest';
 import AdminStaffUsersManage from './AdminStaffUsersManage';
 import { MainContext } from '../contexts/MainContext';
 import CategoriesBrandsManage from './CategoriesMange';
+import OrdersManage from './OrdersMange';
 
 
 interface AdminPanelProps {
@@ -94,69 +94,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggiingIn] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [orders, setOrders] = useState<CustomerOrder[]>([]);
-  const [orderSearchQuery, setOrderSearchQuery] = useState("")
-  const deferedSearchQuery = useDeferredValue(orderSearchQuery)
-  const [isFetchingOrders, setIsFetchingOrders] = useState(true)
-  const [orderFilterPayload, setOrderFilterPayload] = useState<{
-    search?: string;
-    order_status?: string
-  }>({})
-  const [orderPaginationState, setOrderPaginationState] = useState({
-    pageNums: [],
-    prevPage: null,
-    nextPage: null
-  })
-  const [editingOrderPK, setEditingOrderPk] = useState(null)
 
 
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setOrderFilterPayload(prev => ({ ...prev, search: deferedSearchQuery }))
-    }, 500)
-    return () => clearTimeout(timeoutId)
-  }, [deferedSearchQuery])
 
   const [activeAdminSubTab, setActiveAdminSubTab] = useState<AdminSubTab>('main_dashboard');
-
-  //effects
-  useEffect(() => {
-    if (activeAdminSubTab === "orders_manage") {
-      fetchData("orders/orders-list/", ({ data, status }) => {
-        if (status === 200) {
-          setOrders(data.orders)
-          setOrderPaginationState({
-            prevPage: data.prev_page,
-            nextPage: data.next_page,
-            pageNums: data.page_nums
-          })
-        } else {
-          const e = data.error_des || data.detail || "خطا"
-          mainContextValue?.onError(e)
-        }
-        setIsFetchingOrders(false)
-      }, () => setIsFetchingOrders(true), () => mainContextValue?.onError("خطای غیرمنتظره"));
-    }
-  }, [activeAdminSubTab])
-
-  useEffect(() => {
-    const searchParams = new URLSearchParams(orderFilterPayload)
-    fetchData(`orders/orders-list/?${searchParams.toString()}`, ({ data, status }) => {
-      if (status === 200) {
-        setOrders(data.orders)
-        setOrderPaginationState({
-          prevPage: data.prev_page,
-          nextPage: data.next_page,
-          pageNums: data.page_nums
-        })
-      } else {
-        const e = data.error_des || data.detail || "خطا"
-        mainContextValue?.onError(e)
-      }
-      setIsFetchingOrders(false)
-    }, () => setIsFetchingOrders(true), () => mainContextValue?.onError("خطایی غیرمنتظه رخ داد"))
-  }, [orderFilterPayload])
 
   // Admin Multi-user & Role Permissions State
   const ALL_ADMIN_PERMISSIONS: { id: AdminPermission; title: string; desc: string }[] = [
@@ -176,26 +117,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   ];
 
 
-
-
-
-  const [currentAdminUser, setCurrentAdminUser] = useState<AdminUser | null>(() => {
-    try {
-      const saved = localStorage.getItem('pumpino_current_admin');
-      if (saved) return JSON.parse(saved);
-    } catch (e) { }
-    return null;
-  });
-
-
-
-
-
   const hasPermission = (perm: AdminPermission): boolean => {
-    if (!isAdminLoggedIn) return false;
-    if (!currentAdminUser) return true;
-    if (currentAdminUser.role === 'super_admin') return true;
-    return currentAdminUser.permissions.includes(perm);
+    if (user.data?.is_superuser) return true
+    if (!user.isAuthenticated) return false
+    if (perm === "admin_users" && !user.data?.is_superuser) return false
+    return true
   };
 
   // Ref for auto-focusing default tile "مدیریت سفارشات"
@@ -249,43 +175,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   // Modal editing product
   const [editingProduct, setEditingProduct] = useState<Product | null | {}>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
-
-
-
-
-
-
   // Manual Invoice Creation Modal State
   const [isManualInvoiceModalOpen, setIsManualInvoiceModalOpen] = useState(false);
-
-  // Bulk percentage state
-  const [bulkPercentVal, setBulkPercentVal] = useState<number>(5);
-  const [bulkBrandTarget, setBulkBrandTarget] = useState<string>('all');
 
   // Store & Bank & SEO settings state
   const [tempStoreSettings, setTempStoreSettings] = useState<StoreSettings>(() => ({
@@ -376,25 +271,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }));
   };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -419,9 +295,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }
 
 
-
-
-
   const handleAdminLogout = async () => {
     try {
       setIsLoggingOut(true)
@@ -440,10 +313,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     }
   };
-
-
-
-
 
   const handleAddNewProductModal = () => {
 
@@ -746,7 +615,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             }}
           >
             {bedges.map((tile) => {
-              const isAllowed = tile.id === 'low_stock' || tile.id === 'bulk_percent' || hasPermission(tile.id as AdminPermission);
+              const isAllowed = hasPermission(tile.id as AdminPermission);
 
               return (
                 <button
@@ -773,7 +642,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       {!isAllowed && <Lock className="w-3.5 h-3.5 text-amber-300" />}
                     </div>
 
-                    <span className={`${tile.badgeBg} ${tile.isPulse ? 'animate-pulse' : ''} text-[11px] font-black px-2.5 py-0.5 rounded-full font-mono shadow-xs`}>
+                    <span className={`${tile.badgeBg}  text-[11px] font-black px-2.5 py-0.5 rounded-full font-mono shadow-xs`}>
                       {tile.badge}
                     </span>
                   </div>
@@ -849,137 +718,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* Sub Tab 0: Orders Management & Invoice Issuance */}
       {activeAdminSubTab === 'orders_manage' && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <Package className="w-5 h-5 text-amber-600" />
-                <span>لیست سفارش‌های دریافتی از مشتریان</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                بررسی اقلام، تعدیل قیمت و تعداد بر اساس انبار، و صدور فاکتور رسمی خریدار
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsManualInvoiceModalOpen(true)}
-                className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <FilePlus className="w-4 h-4" />
-                <span>+ صدور فاکتور دستی به نام مشتری</span>
-              </button>
-            </div>
-
-            {/* Filter buttons */}
-            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-2xl text-xs font-bold">
-              <button
-                onClick={() => setOrderFilterPayload(prev => ({ ...prev, order_status: "" }))}
-                className={`px-3 py-1.5 rounded-xl cursor-pointer ${orderFilterPayload.order_status === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                همه
-              </button>
-              <button
-                onClick={() => setOrderFilterPayload(prev => ({ ...prev, order_status: "PENDING_BY_ADMIN" }))}
-                className={`px-3 py-1.5 rounded-xl cursor-pointer flex items-center gap-1 ${orderFilterPayload.order_status === 'PENDING_BY_ADMIN' ? 'bg-amber-500 text-slate-950 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                <span>در انتظار بررسی</span>
-
-              </button>
-              <button
-                onClick={() => setOrderFilterPayload(prev => ({ ...prev, order_status: "ACCEPTED(WAITING_FOR_PAYMENT)" }))}
-                className={`px-3 py-1.5 rounded-xl cursor-pointer ${orderFilterPayload.order_status === 'ACCEPTED(WAITING_FOR_PAYMENT)' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                تایید شده(در انتظار پرداخت)
-              </button>
-              <button
-                onClick={() => setOrderFilterPayload(prev => ({ ...prev, order_status: "PAID" }))}
-                className={`px-3 py-1.5 rounded-xl cursor-pointer ${orderFilterPayload.order_status === 'PAID' ? 'bg-green-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                پرداخت شده
-              </button>
-              <button
-                onClick={() => setOrderFilterPayload(prev => ({ ...prev, order_status: "OUT_FOR_TRANSIT" }))}
-                className={`px-3 py-1.5 rounded-xl cursor-pointer ${orderFilterPayload.order_status === 'OUT_FOR_TRANSIT' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                ارسال‌شده
-              </button>
-              <button
-                onClick={() => setOrderFilterPayload(prev => ({ ...prev, order_status: "DELIVERED" }))}
-                className={`px-3 py-1.5 rounded-xl cursor-pointer ${orderFilterPayload.order_status === 'DELIVERED' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                تحویل‌شده
-              </button>
-              <button
-                onClick={() => setOrderFilterPayload(prev => ({ ...prev, order_status: "REJECTED" }))}
-                className={`px-3 py-1.5 rounded-xl cursor-pointer ${orderFilterPayload.order_status === 'REJECTED' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                لغو شده
-              </button>
-            </div>
-            <div className="w-full p-1 flex items-center justify-center">
-              <div className="rounded-3xl bg-cyan-50 border-2 border-cyan-100 w-[98%]">
-                <input
-                  type="text"
-                  placeholder='جستجو در سفارشات با شماره سفارش،شماره خریدار و گیرنده،نام و نام خانوادگی گیرنده و...'
-                  className='p-1.5 w-full focus:border-0 focus:outline-0'
-                  value={orderSearchQuery}
-                  onChange={(e) => setOrderSearchQuery(e.target.value)}
-                />
-
-              </div>
-            </div>
-
-          </div>
-
-          {/* Orders list */}
-          {isFetchingOrders ? Array(6).fill({}).map(() => (
-            <div className="bg-slate-50 p-1.5 my-1.5 rounded-2xl border border-slate-200/90">
-              <div className="w-full flex justify-between items-center">
-                <Skeleton containerClassName='flex-1 flex justify-start' width={"50%"} className='min-h-10 ' />
-                <Skeleton containerClassName='flex-1 flex justify-center ' width={"50%"} className='min-h-10 ' />
-                <Skeleton containerClassName='flex-1 flex justify-end ' width={"50%"} className='min-h-10 ' />
-              </div>
-              <div className="w-full my-2">
-                <Skeleton width={"100%"} height={40} />
-              </div>
-              <div className="w-full my-2">
-                <Skeleton width={"100%"} height={40} />
-              </div>
-            </div>
-          )) : (
-            orders?.length === 0 ? (
-              <div className="p-12 text-center space-y-2 bg-slate-50 rounded-2xl border border-slate-200">
-                <Package className="w-12 h-12 text-slate-300 mx-auto" />
-                <p className="text-xs font-bold text-slate-600">سفارشی در این بخش یافت نشد!</p>
-              </div>
-            ) : (
-              orders
-                ?.map(order => {
-                  return <OrderAdminContainer user={user} editingOrderPK={editingOrderPK} order={order} setOrders={setOrders} setEditingOrderPk={setEditingOrderPk} storeSettings={storeSettings} />
-
-                })
-            )
-          )}
-
-          {!isFetchingOrders && <PaginationContainer productsCount={orders.length} nextPage={orderPaginationState.nextPage} prevPage={orderPaginationState.prevPage} pageNums={orderPaginationState.pageNums} setFilterState={setOrderFilterPayload} />}
-        </div>
-
+        <OrdersManage
+          user={user}
+          setSuccessMsg={setSuccessMsg}
+          setIsManualInvoiceModalOpen={setIsManualInvoiceModalOpen}
+          isManualInvoiceModalOpen={isManualInvoiceModalOpen}
+        />
       )}
 
       {/* Sub Tab: Accounting Module */}
       {activeAdminSubTab === 'accounting' && (
         <AccountingModule
-          orders={orders}
+
           storeSettings={storeSettings}
-          onUpdateOrders={setOrders}
         />
       )}
 
@@ -1198,7 +949,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => {}}
+                        onClick={() => { }}
                         className="px-2.5 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 font-bold text-[11px] rounded-lg transition flex items-center gap-1 cursor-pointer"
                         title="حذف این حساب بانکی"
                       >
@@ -1301,7 +1052,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </p>
               </div>
 
-  
+
 
 
 
@@ -1334,7 +1085,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* Sub Tab: SEO Content & Google Search Algorithm Management */}
       {activeAdminSubTab === 'seo' && (
-        <form onSubmit={() => {}} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-8">
+        <form onSubmit={() => { }} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-8">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
@@ -1349,7 +1100,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => {}}
+                onClick={() => { }}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300 transition cursor-pointer"
               >
                 بازنشانی متون سئو
@@ -1532,7 +1283,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <button
                 type="button"
-                onClick={() => {}}
+                onClick={() => { }}
                 className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
@@ -1550,7 +1301,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     {(tempStoreSettings.seoSettings?.cards || INITIAL_SEO_SETTINGS.cards).length > 1 && (
                       <button
                         type="button"
-                        onClick={() => {}}
+                        onClick={() => { }}
                         className="text-rose-600 hover:text-rose-800 p-1 rounded-lg hover:bg-rose-50 cursor-pointer flex items-center gap-1 font-bold text-xs"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1564,7 +1315,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <input
                       type="text"
                       value={card.title}
-                      onChange={(e) => {}}
+                      onChange={(e) => { }}
                       className="w-full bg-white p-2 rounded-xl border border-slate-300 font-bold"
                     />
                   </div>
@@ -1573,7 +1324,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <textarea
                       rows={3}
                       value={card.description}
-                      onChange={(e) => {}}
+                      onChange={(e) => { }}
                       className="w-full bg-white p-2 rounded-xl border border-slate-300 leading-relaxed"
                     />
                   </div>
@@ -1657,7 +1408,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <button
                 type="button"
-                onClick={() => {}}
+                onClick={() => { }}
                 className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
@@ -1674,7 +1425,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </span>
                     <button
                       type="button"
-                      onClick={() => {}}
+                      onClick={() => { }}
                       className="text-rose-600 hover:text-rose-800 p-1 rounded-lg hover:bg-rose-50 cursor-pointer flex items-center gap-1 font-bold text-xs"
                       title="حذف این سوال"
                     >
@@ -1689,7 +1440,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       type="text"
                       required
                       value={faq.question}
-                      onChange={(e) => {}}
+                      onChange={(e) => { }}
                       className="w-full bg-white p-2.5 rounded-xl border border-slate-300 font-bold text-slate-900"
                     />
                   </div>
@@ -1700,7 +1451,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       rows={3}
                       required
                       value={faq.answer}
-                      onChange={(e) => {}}
+                      onChange={(e) => { }}
                       className="w-full bg-white p-2.5 rounded-xl border border-slate-300 text-slate-800 leading-relaxed"
                     />
                   </div>
@@ -1755,9 +1506,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {/* Sub Tab: Categories and Brands Management */}
       {activeAdminSubTab === 'categories_manage' && (
         <CategoriesBrandsManage
-        setIsQuickBrandModalOpen={setIsQuickBrandModalOpen}
-        setIsQuickCategoryModalOpen={setIsQuickCategoryModalOpen}
-        setSuccessMsg={setSuccessMsg}
+          setIsQuickBrandModalOpen={setIsQuickBrandModalOpen}
+          setIsQuickCategoryModalOpen={setIsQuickCategoryModalOpen}
+          setSuccessMsg={setSuccessMsg}
         />
       )}
 
@@ -1789,22 +1540,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         />
 
       )}
-
-      {/* Manual Invoice Issuance Modal */}
       <CreateManualInvoiceModal
-        orders={orders}
+      
         storeSettings={storeSettings}
         isOpen={isManualInvoiceModalOpen}
         onClose={() => setIsManualInvoiceModalOpen(false)}
         onSaveInvoice={(newOrder) => {
-          setOrders(prev => [newOrder, ...prev]);
+
           setSuccessMsg(`فاکتور دستی شماره ${newOrder.pk} با موفقیت صادر شد.`);
           setTimeout(() => setSuccessMsg(''), 4000);
         }}
-        onPrintInvoice={(order) => {
-          onOpenPrintInvoiceForOrder(order);
-        }}
+
       />
+
     </div>
   );
 };

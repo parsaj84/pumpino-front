@@ -24,12 +24,11 @@ import { MainContext } from '../contexts/MainContext';
 import { processPriceWithOff } from '../utils/mainUtils';
 
 interface CreateManualInvoiceModalProps {
-  orders: CustomerOrder[];
   storeSettings: StoreSettings;
   isOpen: boolean;
   onClose: () => void;
   onSaveInvoice: (newOrder: CustomerOrder) => void;
-  onPrintInvoice?: (order: CustomerOrder) => void;
+
 }
 
 export const CreateManualInvoiceModal: React.FC<CreateManualInvoiceModalProps> = ({

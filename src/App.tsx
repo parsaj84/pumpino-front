@@ -1,24 +1,17 @@
-import React, { useState, useEffect, act, useMemo } from 'react';
+import React, { useState, useEffect, act, useMemo, useCallback } from 'react';
 import fetchData from './utils/fetchData';
 import {
   Product,
   Category,
   Brand,
-  FilterState,
-  CustomerInfo,
-  CustomerProfile,
-  CustomerOrder,
   UserData,
   CartData,
-  PaginationData,
   AdminContextValue
 } from './types';
 import {
   loadStoreSettings,
-  loadCustomerProfile,
 } from './utils/storage';
 import { Header } from './components/Header';
-import { ProductCard } from './components/ProductCard';
 import { ProductDetailModal } from './components/ProductDetailModal';
 
 import { SparePartFinder } from './components/SparePartFinder';
@@ -28,41 +21,35 @@ import { CustomerAuthModal } from './components/CustomerAuthModal';
 import EditProfileModal from './components/EditProfileModal';
 import { CustomerOrdersView } from './components/CustomerOrdersView';
 // import { PriceUpdatesAlert } from './components/PriceUpdatesAlert(must be developed)';
-import { PrintInvoiceView } from './components/PrintInvoiceView(probably deleted)';
+// import { PrintInvoiceView } from './components/PrintInvoiceView(probably deleted)';
 // import { PrintInvoiceModal } from './components/PrintInvoiceModal';
-import { SeoContentSection } from './components/SeoContentSection';
+// import { SeoContentSection } from './components/SeoContentSection';
 import { PwaInstallGuideModal } from './components/PwaInstallGuideModal';
 import { toPersianDigits } from './utils/formatters';
 import {
   SlidersHorizontal,
   Zap,
   ShoppingBag,
-  Info,
   User,
-  Search,
-  X,
-  Tag,
-  Package
+  Package,
+  Phone,
+  Map
 } from 'lucide-react';
 import API from '@/api/api';
-
-import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import { ProductCardLoading } from './components/ProductCardLoading';
-import PaginationContainer from './components/Pagintation';
 import EditPhoneModal from './components/EditPhoneModal';
 import CustomerReturnRequests from './components/CustomerReturnRequests';
 import ErrorMessage from './components/ErrorMessage';
 import SuccessMessage from './components/successMessage';
 import { MainContext, MainContextValue } from './contexts/MainContext';
 import AdminContext from './contexts/AdminContext';
+import ProductsList from './components/ProductsList';
 
 
 export default function App() {
   // Application Data States
   const [brands, setBrands] = useState<Brand[]>([]);
-  const storeSettings = loadStoreSettings()
-  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(() => loadCustomerProfile());
+  const storeSettings = useMemo(() => loadStoreSettings(), [])
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isEditPhoneModalOpen, setIsEditPhoneModalOpen] = useState(false)
 
@@ -82,35 +69,18 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'finder' | 'quote' | 'orders' | 'admin' | "return_requests">('catalog');
   const [searchQuery, setSearchQuery] = useState("");
   const [products, setProducts] = useState<Product[] | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true)
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [isCategoriesLoading, setIsCategoriesLoading] = useState<boolean>(true)
   const [isBrandsLoading, setIsBrandsLoading] = useState<boolean>(true)
-  const [paginationState, setPaginationState] = useState<PaginationData | null>(null)
-  const [productsCount, setProductsCount] = useState(0)
   const [user, setUser] = useState<UserData>({ isAuthenticated: false, data: null })
   const [isAuthorizing, setIsAuthorizing] = useState(true)
   const [isEditProfileModalActive, setIsEditProfileModalActive] = useState(false)
   const [cartData, setCartData] = useState<CartData | null>(null);
   const [isCartLoading, setIsCartLoading] = useState(true)
 
-  function compileFilterStateFromURL(): FilterState {
-    const params = new URLSearchParams(location.search)
 
-    return {
-      categoryId: params.get('categoryId') ?? 'all',
-      brandId: params.get('brandId') ?? 'all',
-      stockOnly: params.get('stockOnly') === 'true',
-      minPrice: Number(params.get('minPrice') ?? 0),
-      maxPrice: Number(params.get('maxPrice') ?? 50000000),
 
-      compatiblePumpQuery: params.get('compatiblePumpQuery') ?? ''
-    }
-  }
-
-  const [filterState, setFilterState] = useState<FilterState | Record<string, any>>(() => compileFilterStateFromURL());
-
-  async function authorize() {
+  const authorize = useCallback(async () => {
     try {
       const response = await API.post("users/verify-token/")
       if (response.status === 200) {
@@ -123,33 +93,13 @@ export default function App() {
       }
     } catch (e) {
       setIsAuthorizing(false)
-
     }
-  }
+  }, [])
 
 
-  useEffect(() => {
-    const urlParams = new URLSearchParams(filterState as Record<string, string>)
-    urlParams.set("searchQuery", searchQuery || "")
-    fetchData("products/" + "?" + urlParams.toString(), (response) => {
-      setProducts(response.data.products)
-      setPaginationState({
-        nextPage: response.data.next_page,
-        prevPage: response.data.previous_page,
-        numPages: response.data.num_pages
-      })
-      setProductsCount(response.data.all_objs_count)
-      setIsLoading(false)
-      history.replaceState({}, "", "?" + urlParams.toString())
-    }, () => { setIsLoading(true) }, () => {
-      setIsErrorAlertActive(true)
-      setErrorMsg("خطا در برقراری ارتباط با سرور")
-      setTimeout(() => {
-        setIsErrorAlertActive(false)
-        setErrorMsg("")
-      }, 1500)
-    });
-  }, [filterState])
+
+
+
   useEffect(() => {
     fetchData("products/categories/", (response) => {
       setCategories(response.data)
@@ -184,51 +134,13 @@ export default function App() {
     }, null, null)
   }, [])
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchQuery === null) {
-        return;
-      }
 
-
-      const urlSearchParams = new URLSearchParams(filterState as Record<string, string>)
-      urlSearchParams.set("searchQuery", searchQuery || "")
-      fetchData("products/" + "?" + urlSearchParams.toString(), (response) => {
-        setProducts(response.data.products)
-        setPaginationState({
-          nextPage: response.data.next_page,
-          prevPage: response.data.previous_page,
-          numPages: response.data.num_pages
-        })
-        setProductsCount(response.data.all_objs_count)
-        setIsLoading(false)
-        history.replaceState({}, "", "?" + urlSearchParams.toString())
-      }, () => {
-        setIsLoading(true)
-      }, () => {
-        setIsErrorAlertActive(true)
-        setErrorMsg("خطا در برقراری ارتباط با سرور")
-        setTimeout(() => {
-          setIsErrorAlertActive(false)
-          setErrorMsg("")
-        }, 1500)
-      })
-
-    }, 500)
-    return () => clearTimeout(timeoutId)
-  }, [searchQuery])
 
   useEffect(() => {
-    let searchParams = null
     if (activeTab !== "catalog") {
       history.replaceState({}, "", "")
     }
-    else {
-      searchParams = new URLSearchParams(filterState as Record<string, string>)
-      searchParams.set("searchQuery", searchQuery || "")
-    }
-    const searchParamsString = searchParams && !location.search && location.pathname ? "/?" + searchParams?.toString() : ""
-    history.replaceState({}, "", "/" + activeTab + searchParamsString)
+    history.replaceState({}, "", "/" + activeTab)
   }, [activeTab])
 
   /////////////////////////////////////////////////
@@ -238,6 +150,7 @@ export default function App() {
   const [isErrorAlertActive, setIsErrorAlertActive] = useState(false)
   const [isSuccessAlertActive, setIsSuccessAlertActive] = useState(false)
 
+
   // Sync Persian font family setting with document body
   useEffect(() => {
     const f = storeSettings.fontFamily || 'vazirmatn';
@@ -245,55 +158,12 @@ export default function App() {
     document.body.classList.add(`font-${f}`);
   }, [storeSettings.fontFamily]);
 
-  // Navigation & UI States
-
-
 
   // Selected Product Detail Modal
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-
-
-
-
-  // Print Invoice Trigger State
-  const [printableCustomer, setPrintableCustomer] = useState<CustomerInfo | null>(null);
-  const [selectedOrderForPrint, setSelectedOrderForPrint] = useState<CustomerOrder | null>(null);
-  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
-
-
-
-
-
-  const handleOpenPrintInvoiceForOrder = (order: CustomerOrder) => {
-    setSelectedOrderForPrint(order);
-    setPrintableCustomer(null);
-    setIsInvoiceModalOpen(true);
-  };
-
-  // Keep search query synced with header
-
-
-  // Add / Toggle quote item
-
-
-  const handleResetFilters = () => {
-    setSearchQuery('');
-    setFilterState({
-      categoryId: 'all',
-      brandId: 'all',
-      stockOnly: false,
-      minPrice: 0,
-      maxPrice: 50000000,
-      sortBy: 'featured',
-      powerHpFilter: 'all',
-      compatiblePumpQuery: ''
-    });
-  };
-
-
-
-
-  const cartITemsId = cartData?.cart_items?.map(i => i.product_id);
+  const cartITemsId = useMemo(() => (cartData?.cart_items?.map(i => i.product_id)), [
+    cartData
+  ])
 
 
   useEffect(() => {
@@ -309,7 +179,7 @@ export default function App() {
 
   const adminContextValue = useMemo<AdminContextValue>(() => ({
     setBrands: setBrands,
-    setProducts : setProducts
+    setProducts: setProducts
   }), [])
 
   const MainContextValue = useMemo<MainContextValue>(() => {
@@ -333,8 +203,11 @@ export default function App() {
           setIsSuccessAlertActive(false)
           setSuccessMsg("")
         }, 1500);
-      }
+      },
+      setCartData: setCartData,
+      storeSettings: storeSettings
     }
+
   }, [])
 
   return (
@@ -352,167 +225,31 @@ export default function App() {
           setSearchQuery={setSearchQuery}
           isAuthorizing={isAuthorizing}
           user={user}
-
+          isCartLoading={isCartLoading}
           setUser={setUser}
           setIsEditProfileModalActive={setIsEditProfileModalActive}
           quoteCount={cartData?.cart_items?.length || 0}
-          customerProfile={customerProfile}
           storeSettings={storeSettings}
           products={products || []}
-
           onOpenAuthModal={() => setIsAuthModalOpen(true)}
           onOpenPwaGuide={() => setIsPwaGuideOpen(true)}
-          productsCount={productsCount}
         />
 
         {/* Main Container */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-6 space-y-6 pb-24 md:pb-8">
           {activeTab === 'catalog' && (
-            <>
-              <div className="space-y-4 w-full">
-                {/* Product Catalog Grid */}
-
-                <div className="space-y-4">
-                  {/* Category Header Banner if Category Filtered */}
-                  {/* Category Header Banner if Category Filtered */}
-                  {(filterState.categoryId !== 'all' || filterState.brandId !== "all") && (
-                    <div className="bg-sky-900 text-white p-4 rounded-2xl flex items-center justify-between border border-sky-800">
-                      <div>
-                        <h2 className="text-base font-bold">
-                          {categories?.find(c => c.pk === filterState.categoryId)?.pk}
-                        </h2>
-
-                      </div>
-                      <button
-                        onClick={() => setFilterState(prev => ({ ...prev, categoryId: 'all', brandId: "all" }))}
-                        className="text-xs bg-sky-800 hover:bg-sky-700 text-white px-3 py-1.5 rounded-xl cursor-pointer"
-                      >
-                        نمایش همه
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Accessible High-Contrast Search Box & Quick Chips */}
-                  <div className="bg-gradient-to-r from-sky-50 to-cyan-50 border-2 border-sky-400 rounded-3xl p-4 shadow-sm space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-xs font-bold text-sky-950">
-                        <Search className="w-4 h-4 text-sky-600" />
-                        <span>جستجوی سریع کالاها، برندها و کد قطعات پمپینو:</span>
-                      </div>
-                      <span className="text-xs font-mono font-bold bg-sky-700 text-white px-2.5 py-0.5 rounded-xl">
-                        {toPersianDigits(productsCount)} کالا
-                      </span>
-                    </div>
-
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="جستجوی پمپ، مدل (مثلاً PM45 یا CAM100)، برند (پنتاکس...) یا کد قطعه..."
-                        className="w-full bg-white text-slate-900 placeholder-slate-400 text-sm font-extrabold rounded-2xl py-3 pr-10 pl-10 border-2 border-sky-300 focus:border-sky-600 focus:ring-4 focus:ring-sky-100 shadow-sm transition outline-none"
-                      />
-                      <Search className="w-5 h-5 text-sky-600 absolute right-3 top-3.5 pointer-events-none" />
-                      {searchQuery && (
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          className="absolute left-3 top-3 p-1 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition cursor-pointer"
-                          title="پاک کردن جستجو"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Quick Search Tag Chips */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-                      <span className="text-slate-500 font-bold ml-1 flex items-center gap-1 text-[11px]">
-                        <Tag className="w-3.5 h-3.5 text-sky-600" />
-                        دسته بندی ها:
-                      </span>
-                      {isCategoriesLoading ? Array(10).fill({}).map(ele => <Skeleton width={50} height={20} />) : categories?.map((category, idx) => (
-
-                        <button
-                          key={idx}
-                          onClick={() => setFilterState(prev => {
-                            const output = { ...prev }
-                            output.categoryId = category.pk
-                            return output
-                          })}
-                          className={`px-2.5 py-1 rounded-xl font-bold transition cursor-pointer text-[11px] border ${Number(filterState.categoryId) === Number(category.pk)
-                            ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:border-sky-400 hover:text-sky-700'
-                            }`}
-                        >
-                          ⚡ {category.name}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-                      <span className="text-slate-500 font-bold ml-1 flex items-center gap-1 text-[11px]">
-                        <Tag className="w-3.5 h-3.5 text-sky-600" />
-                        برندها
-                      </span>
-                      {isBrandsLoading ? Array(10).fill({}).map(ele => <Skeleton width={50} height={20} />) : brands?.map((brand, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setFilterState(prev => {
-                            const output = { ...prev, brandId: brand.pk }
-                            return output
-                          })}
-                          className={`px-2.5 py-1 rounded-xl font-bold transition cursor-pointer text-[11px] border ${Number(filterState.brandId) === Number(brand.pk)
-                            ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:border-sky-400 hover:text-sky-700'
-                            }`}
-                        >
-                          ⚡ {brand.name}
-                        </button>
-                      ))}
-                    </div>
-
-                  </div>
-
-                  {/* Products Grid Container */}
-                  {isLoading ? (<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4'>
-                    {Array(6).fill({}).map(ele => <ProductCardLoading />)}
-                  </div>) : (products && products?.length > 0) ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {products?.map(product => {
-                        const categoriesString = product.categories?.map(ele => ele.name).join(",")
-                        return (
-                          <ProductCard
-                            key={product.pk}
-                            product={product}
-                            brandName={product.brand?.name}
-                            categoryName={categoriesString}
-                            storeSettings={storeSettings}
-                            onViewDetails={(p: Product) => setSelectedProduct(p)}
-                            setCartData={setCartData}
-                            isInQuote={cartITemsId?.includes(product?.pk?.toString()) ? true : false}
-                          />
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 space-y-3">
-                      <Info className="w-12 h-12 text-slate-300 mx-auto" />
-                      <h3 className="text-base font-bold text-slate-800">
-                        هیچ محصول یا قطعه‌ای با مشخصات انتخابی شما پیدا نشد!
-                      </h3>
-                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                        عبارت جستجو یا فاکتورهای فیلتر را تغییر دهید یا دکمه حذف فیلترها را بزنید.
-                      </p>
-                      <button
-                        onClick={handleResetFilters}
-                        className="px-4 py-2 bg-sky-600 text-white rounded-xl text-xs font-bold hover:bg-sky-700 cursor-pointer"
-                      >
-                        بازنشانی همه فیلترها
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-              {isLoading || <PaginationContainer productsCount={productsCount} setFilterState={setFilterState} pageNums={paginationState?.numPages || []} nextPage={paginationState?.nextPage || null} prevPage={paginationState?.prevPage || null} />}</>
+            <ProductsList
+              setErrorMsg={setErrorMsg}
+              setIsErrorAlertActive={setIsErrorAlertActive}
+              brands={brands}
+              cartITemsId={cartITemsId}
+              categories={categories}
+              setProducts={setProducts}
+              isBrandsLoading={isBrandsLoading}
+              isCategoriesLoading={isCategoriesLoading}
+              products={products}
+              setSelectedProduct={setSelectedProduct}
+            />
           )}
           {/* Tab 2: Spare Part Compatibility Finder */}
           {activeTab === 'finder' && (
@@ -521,7 +258,6 @@ export default function App() {
               onViewDetails={(p) => setSelectedProduct(p)}
               setCartData={setCartData}
               cartItemsId={cartITemsId || []}
-
             />
           )}
 
@@ -542,9 +278,7 @@ export default function App() {
             <CustomerOrdersView
               customerProfile={user}
               storeSettings={storeSettings}
-              onOpenPrintInvoice={handleOpenPrintInvoiceForOrder}
               onEditProfile={() => user.isAuthenticated ? setIsEditProfileModalActive(true) : setIsAuthModalOpen(true)}
-              onClose={() => setActiveTab('catalog')}
             />
           )}
 
@@ -619,24 +353,24 @@ export default function App() {
 
 
         {/* Hidden Printable A4 Sheet Fallback View (maybe deleted) */}
-        {printableCustomer && (
+        {/* {printableCustomer && (
           <PrintInvoiceView
             cartData={cartData}
             customerInfo={user}
             storeSettings={storeSettings}
           />
-        )}
+        )} */}
 
-        {selectedOrderForPrint && (
+        {/* {selectedOrderForPrint && (
           <PrintInvoiceView
             customerInfo={user}
             order={selectedOrderForPrint}
             storeSettings={storeSettings}
           />
-        )}
+        )} */}
 
         {/* Google SEO Content & Structured Data FAQ Section (must be dabated) */}
-        <SeoContentSection storeSettings={storeSettings} />
+        {/* <SeoContentSection storeSettings={storeSettings} /> */}
 
         {/* Footer */}
         <footer className="bg-slate-900 text-slate-400 text-xs py-8 border-t border-slate-800 print:hidden mt-12 pb-24 md:pb-8">
@@ -646,8 +380,19 @@ export default function App() {
               <p className="font-light">{storeSettings.tagline}</p>
             </div>
 
-            <div className="text-slate-500">
-              تلفن فروش: {toPersianDigits(storeSettings.phoneNumber)} - {toPersianDigits(storeSettings.mobileNumber)} | آدرس: {storeSettings.address}
+            <div className="flex flex-col md:flex-row items-center gap-2 sm:gap-4  whitespace-nowrap">
+              <span
+                className="flex  items-center gap-1 text-sky-300 font-bold hover:underline shrink-0"
+              >
+                <Phone className="w-3 h-3 text-sky-400" />
+                <span>تماس: {toPersianDigits(`02133953098 | 02133988231`)}</span>
+              </span>
+              <span
+                className="flex items-center gap-1 text-sky-300 font-bold hover:underline shrink-0"
+              >
+                <Map className="w-3 h-3 text-sky-400" />
+                <span>ادرس: تهران سعدی جنوبی پاساژ رضاپور همکف پلاک 23</span>
+              </span>
             </div>
           </div>
         </footer>
@@ -714,11 +459,11 @@ export default function App() {
         </nav>
 
         {/* error message alert */}
-
         <ErrorMessage
           message={errorMsg}
           isActive={isErrorAlertActive}
         />
+
 
         <SuccessMessage
           message={successMsg}

@@ -176,7 +176,7 @@ export const OrderTicketChat: React.FC<OrderTicketChatProps> = ({
                             {isMe ? (
                               <>
                                 <User className="w-3.5 h-3.5 text-sky-300" />
-                                <span>{user?.data?.fname || user?.data?.lname ? user?.data?.fname + " " + user?.data?.lname : "شما"}</span>
+                                <span>{(user?.data?.fname || user?.data?.lname) ? (user?.data?.fname + " " + user?.data?.lname) : "شما"}</span>
                               </>
                             ) : (
                               <>

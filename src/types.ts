@@ -496,6 +496,6 @@ export interface FilterState {
   brandId: string; // 'all' or Brand.id
   stockOnly: boolean;
   minPrice: number;
-  maxPrice: number;
+  maxPrice: number | "";
   compatiblePumpQuery: string;
 }

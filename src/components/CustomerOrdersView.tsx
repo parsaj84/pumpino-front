@@ -1,4 +1,4 @@
-import React, { startTransition, useContext, useEffect, useMemo, useState, useTransition } from 'react';
+import React, { startTransition, useContext, useDeferredValue, useEffect, useMemo, useState, useTransition } from 'react';
 import {
   Package,
   Clock,
@@ -31,9 +31,8 @@ interface CustomerOrdersViewProps {
 
   customerProfile?: UserData | null;
   storeSettings: StoreSettings;
-  onOpenPrintInvoice: (order: CustomerOrder) => void;
+
   onEditProfile: () => void;
-  onClose?: () => void;
 }
 
 const STATUS_STEPS: { key: OrderStatus; label: string; icon: React.FC<{ className?: string }> }[] = [
@@ -53,8 +52,6 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
 
 }) => {
   const mainContextValue = useContext(MainContext)
-
-
   const [isReturnItemRequestModalOpen, setIsReturnItemRequestModalOpen] = useState(false)
   const [editingItemID, setEditingItemID] = useState<OrderItem["pk"] | null>(null)
   const [editingOrderPK, setEditingOrderPK] = useState<CustomerOrder["pk"] | null>(null)
@@ -67,9 +64,13 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
   const [orderGeneratingInvoice, setOrderGeneratingInvoice] = useState<CustomerOrder['pk'] | null>(null)
   const [fetchingOrders, setFetchingOrders] = useState(true)
   const [editingReturnRequest, setEditingReturnRequest] = useState<ReturnRequest | null>(null)
+  const deferedSelectedStatusTab = useDeferredValue(selectedStatusTab)
+
+
   useEffect(() => {
     if (customerProfile?.isAuthenticated) {
-      fetchData("orders/user-orders-list/", (response) => {
+
+      fetchData("orders/user-orders-list/" + `?order_status=${deferedSelectedStatusTab}`, (response) => {
         const { status, data } = response
         if (status === 200) {
           setOrders(data)
@@ -81,16 +82,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
     } else {
       setOrders([])
     }
-  }, [customerProfile])
-
-  const filteredOrders = useMemo(() => {
-    return orders.filter(ele => {
-      if (selectedStatusTab === "all") {
-        return true
-      }
-      return ele.order_status === selectedStatusTab
-    })
-  }, [selectedStatusTab, orders])
+  }, [customerProfile , deferedSelectedStatusTab])
 
 
   const handleCopy = (text: string, label: string) => {
@@ -98,9 +90,6 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
     setCopiedText(label);
     setTimeout(() => setCopiedText(null), 2500);
   };
-
-
-
 
 
   const handleInvoiceGenerate = async (orderId: CustomerOrder["pk"]) => {
@@ -480,7 +469,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
             </div>
           </div>
         )) :
-          filteredOrders.length <= 0 ? <div className="p-12 text-center space-y-3 bg-slate-50/50 rounded-2xl border border-slate-200">
+          orders.length <= 0 ? <div className="p-12 text-center space-y-3 bg-slate-50/50 rounded-2xl border border-slate-200">
             <Package className="w-14 h-14 text-slate-300 mx-auto" />
             <h3 className="text-base font-bold text-slate-800">
               هنوز هیچ سفارشی با مشخصات زیر برای شما ثبت نشده است!

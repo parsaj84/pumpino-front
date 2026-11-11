@@ -8,7 +8,7 @@ import { MainContext, MainContextValue } from "../contexts/MainContext";
 
 interface EditPhoneModalProps {
   setIsActive : Dispatch<SetStateAction<boolean>>;
-  userData : UserType;
+  userData : UserType | null;
   setUser : Dispatch<SetStateAction<UserData>>
 }
 

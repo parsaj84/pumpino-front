@@ -9,7 +9,7 @@ import {
   Smartphone,
   PackageX
 } from 'lucide-react';
-import { StoreSettings, Product, CustomerProfile, UserData } from '../types';
+import { StoreSettings, Product,  UserData } from '../types';
 import { toPersianDigits } from '../utils/formatters';
 import Skeleton from 'react-loading-skeleton';
 
@@ -24,13 +24,12 @@ interface HeaderProps {
   quoteCount: number;
   user: UserData;
   setUser: Dispatch<SetStateAction<UserData>>
-  customerProfile: CustomerProfile | null;
   storeSettings: StoreSettings;
   products: Product[];
   onOpenAuthModal: () => void;
   onOpenPwaGuide?: () => void;
   isAuthorizing: boolean;
-  productsCount: number,
+  isCartLoading: boolean;
   setIsEditProfileModalActive: Dispatch<SetStateAction<boolean>>
 }
 
@@ -39,11 +38,12 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   quoteCount,
-  customerProfile,
+
   onOpenAuthModal,
   onOpenPwaGuide,
   isAuthorizing,
   user,
+  isCartLoading,
   setIsEditProfileModalActive,
 }) => {
 
@@ -52,41 +52,41 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Top Bar with Store Info */}
       <div className="bg-slate-950 text-slate-300 text-[11px] sm:text-xs py-1.5 px-3 sm:px-4 border-b border-slate-800/60">
 
-          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-2">
-            <div className="flex items-center gap-2 sm:gap-4  whitespace-nowrap">
-              <span
-                className="flex items-center gap-1 text-sky-300 font-bold hover:underline shrink-0"
-              >
-                <Phone className="w-3 h-3 text-sky-400" />
-                <span>تماس: {toPersianDigits(`02133953098 | 02133988231`)}</span>
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between md:justify-end gap-1.5 shrink-0">
-              {onOpenPwaGuide && (
-                <button
-                  type="button"
-                  onClick={onOpenPwaGuide}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition text-[11px] font-bold cursor-pointer border border-amber-500/30"
-                  title="راهنمای افزودن وب‌اپلیکیشن به صفحه اصلی گوشی"
-                >
-                  <Smartphone className="w-3 h-3 text-amber-400" />
-                  <span>نصب اپلیکیشن</span>
-                </button>
-              )}
-              {!isAuthorizing && user.isAuthenticated && (user.data?.is_admin || user.data?.is_staff || user.data?.is_superuser) && user.data?.is_active && (
-                <button
-                  onClick={() => setActiveTab(("admin"))}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300 border-2 border-red-500/20 transition text-[11px] font-medium cursor-pointer"
-                  title="ورود به ادمین"
-                >
-                  <User className="w-3 h-3" />
-                  <span>ورود به پنل ادمین</span>
-                </button>
-              )}
-
-            </div>
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="flex items-center gap-2 sm:gap-4  whitespace-nowrap">
+            <span
+              className="flex items-center gap-1 text-sky-300 font-bold hover:underline shrink-0"
+            >
+              <Phone className="w-3 h-3 text-sky-400" />
+              <span>تماس: {toPersianDigits(`02133953098 | 02133988231`)}</span>
+            </span>
           </div>
+
+          <div className="flex items-center justify-between md:justify-end gap-1.5 shrink-0">
+            {onOpenPwaGuide && (
+              <button
+                type="button"
+                onClick={onOpenPwaGuide}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition text-[11px] font-bold cursor-pointer border border-amber-500/30"
+                title="راهنمای افزودن وب‌اپلیکیشن به صفحه اصلی گوشی"
+              >
+                <Smartphone className="w-3 h-3 text-amber-400" />
+                <span>نصب اپلیکیشن</span>
+              </button>
+            )}
+            {!isAuthorizing && user.isAuthenticated && (user.data?.is_admin || user.data?.is_staff || user.data?.is_superuser) && user.data?.is_active && (
+              <button
+                onClick={() => setActiveTab(("admin"))}
+                className="flex items-center gap-1 px-3 py-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300 border-2 border-red-500/20 transition text-[11px] font-medium cursor-pointer"
+                title="ورود به ادمین"
+              >
+                <User className="w-3 h-3" />
+                <span>ورود به پنل ادمین</span>
+              </button>
+            )}
+
+          </div>
+        </div>
 
       </div>
 
@@ -111,22 +111,26 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Header Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setActiveTab('quote')}
-            className={`relative inline-flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl font-extrabold text-xs sm:text-sm transition cursor-pointer shadow-sm ${activeTab === 'quote'
-              ? 'bg-amber-500 text-slate-950 shadow-amber-500/20'
-              : 'bg-slate-800 text-slate-100 hover:bg-slate-700 border border-slate-700/80 hover:border-amber-400/40'
-              }`}
-          >
-            <ShoppingBag className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline">سبد خرید</span>
-            <span className="sm:hidden">سبد خرید</span>
-            {quoteCount > 0 && (
-              <span className="bg-amber-400 text-slate-950 text-[11px] font-black rounded-full w-5 h-5 flex items-center justify-center">
-                {toPersianDigits(quoteCount)}
-              </span>
-            )}
-          </button>
+          {isCartLoading ? <Skeleton width={100} height={30} /> : (
+            <>
+              <button
+                onClick={() => setActiveTab('quote')}
+                className={`relative inline-flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl font-extrabold text-xs sm:text-sm transition cursor-pointer shadow-sm ${activeTab === 'quote'
+                  ? 'bg-amber-500 text-slate-950 shadow-amber-500/20'
+                  : 'bg-slate-800 text-slate-100 hover:bg-slate-700 border border-slate-700/80 hover:border-amber-400/40'
+                  }`}
+              >
+                <ShoppingBag className="w-4 h-4 text-amber-400" />
+                <span className="hidden sm:inline">سبد خرید</span>
+                <span className="sm:hidden">سبد خرید</span>
+                {quoteCount > 0 && (
+                  <span className="bg-amber-400 text-slate-950 text-[11px] font-black rounded-full w-5 h-5 flex items-center justify-center">
+                    {toPersianDigits(quoteCount)}
+                  </span>
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -193,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Skeleton width={80} height={25} highlightColor='gray' containerClassName={`flex items-center gap-1.5 py-2 rounded-xl text-xs md:text-sm   cursor-pointer mr-auto `} />
             : <button
               onClick={user.isAuthenticated ? () => setIsEditProfileModalActive(true) : onOpenAuthModal}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs md:text-sm font-extrabold transition cursor-pointer whitespace-nowrap border mr-auto ${customerProfile
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs md:text-sm font-extrabold transition cursor-pointer whitespace-nowrap border mr-auto ${user
                 ? 'bg-slate-800/90 text-sky-300 border-sky-500/40 hover:bg-slate-700'
                 : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
                 }`}

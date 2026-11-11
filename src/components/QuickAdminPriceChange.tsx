@@ -52,7 +52,7 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                 setProducts(prev => [...prev].filter(p => p.pk !== product.pk))
                 if (adminContext.setProducts) {
                     adminContext?.setProducts(prev => [...(prev || [])].filter(ele => ele.pk !== product.pk))
-                    
+
                 }
             } else {
                 mainCotextValue?.onError("خطا در فرایند پاک کردن محصول")
@@ -80,8 +80,8 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
 
     const compileFilterState = () => {
         const searchParams = new URLSearchParams()
-        searchParams.append("brandId", (filterState.selectedBrandPK || "").toString())
-        searchParams.append("categoryId", (filterState.selectedCategoryPK || "").toString())
+        searchParams.append("brandId", (filterState.selectedBrandPK || "all").toString())
+        searchParams.append("categoryId", (filterState.selectedCategoryPK || "all").toString())
         searchParams.append("searchQuery", filterState.searchQuery)
         searchParams.append("page", filterState.page?.toString())
         return "?" + searchParams.toString()
@@ -190,8 +190,8 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                         onChange={(e) => setFilterState(prev => ({ ...prev, selectedBrandPK: e.target.value }))}
                         className="bg-slate-50 text-xs p-2.5 rounded-xl border border-slate-300 cursor-pointer"
                     >
-                        <option value="">همه برندها</option>
-                        {brands?.map(b => (
+                        <option value="all">همه برندها</option>
+                        {brands && brands?.map(b => (
                             <option key={b.pk} value={b.pk}>{b.name}({b.country})</option>
                         ))}
                     </select>
@@ -223,9 +223,10 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                             <th className="p-3 text-center">عملیات</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {isLoadingProducts ? (
-                            Array(6).fill({}).map(() => (
+                    {isLoadingProducts ? (
+                        <tbody className="divide-y divide-slate-100">
+
+                            {Array(6).fill({}).map(() => (
                                 <tr className="hover:bg-slate-50">
                                     <td className="p-3 font-mono font-bold text-slate-600">
                                         <Skeleton width={60} height={20} />
@@ -253,12 +254,16 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                                         <Skeleton width={60} height={20} />
                                     </td>
                                 </tr>
-                            ))
 
-                        ) : products.length !== 0 ? products.map(p => {
-                            // const draft = draftPrices[p.id] || { price: p.priceToman, stock: p.stockStatus, qty: p.quantityInStock };
-                            const isUpdating = updatingProductPK && updatingProductPK === p.pk
-                            return (
+                            ))}
+                        </tbody>
+
+                    ) : products.length !== 0 ? products.map(p => {
+                        // const draft = draftPrices[p.id] || { price: p.priceToman, stock: p.stockStatus, qty: p.quantityInStock };
+                        const isUpdating = updatingProductPK && updatingProductPK === p.pk
+                        return (
+                            <tbody className="divide-y divide-slate-100">
+
                                 <tr key={p.pk} className="hover:bg-slate-50">
                                     <td className="p-3 font-mono font-bold text-slate-600">{p.pk}</td>
                                     <td className="p-3 font-bold text-slate-900">{p.title}</td>
@@ -334,13 +339,17 @@ export default function QuickAdminPriceChange({ brands, categories, storeSetting
                                         </button>
                                     </td>
                                 </tr>
-                            );
-                        }) : (
-                            <span>
-                                محصولی یافت نشد!
-                            </span>
-                        )}
-                    </tbody>
+                            </tbody>
+                        );
+                    }) : (
+                        <tbody
+                            className="w-full"
+                        >
+                            <tr><td className="p-8 text-center text-slate-500 text-xs" colSpan="8">هیچ محصولی یافت نشد</td></tr>
+
+                        </tbody>
+                    )}
+
                 </table>
             </div>
             {isProductModalOpen && editingProduct &&

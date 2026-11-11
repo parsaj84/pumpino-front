@@ -7,20 +7,18 @@ import { CartData, CartItem, Product, StoreSettings } from "../types";
 import { MainContext } from "../contexts/MainContext";
 import compileErrorOBJToArray from "../utils/compileErrorsOBJToArray";
 
-interface CartItemTableRowProps  {
-    storeSettings : StoreSettings;
-    setCartData : Dispatch<SetStateAction<CartData | null>>;
-    product : Product;
-    item : CartItem;
-    idx : number;
+interface CartItemTableRowProps {
+    storeSettings: StoreSettings;
+    setCartData: Dispatch<SetStateAction<CartData | null>>;
+    product: Product;
+    item: CartItem;
+    idx: number;
 }
 
 
-export default function CartItemTableRow({ storeSettings, setCartData, product, item, idx } : CartItemTableRowProps) {
+export default function CartItemTableRow({ storeSettings, setCartData, product, item, idx }: CartItemTableRowProps) {
     const mainContext = useContext(MainContext)
 
-
- 
     const [isPending, setIsPending] = useState(false)
     const quantity = Math.max(Number(item.quantity), 1)
     const unitPrice = product.price * ((100 - (product.off || 0)) / 100);
@@ -49,7 +47,7 @@ export default function CartItemTableRow({ storeSettings, setCartData, product, 
                 }))
             } else {
                 const e = data.error_des || data.details || "خطایی رخ داده است"
-                mainContext?.onError(typeof e === "object" ? compileErrorOBJToArray(e)?.join(",") : "خطایی رخ داده است")
+                mainContext?.onError(e)
             }
             setIsPending(false)
         } catch (e) {
@@ -68,7 +66,7 @@ export default function CartItemTableRow({ storeSettings, setCartData, product, 
             } else {
                 const e = data.error_des || data.details || "خطای غیرمنتظره رخ داده است"
                 mainContext?.onError(typeof e === "object" ? compileErrorOBJToArray(e)?.join(",") : "خطایی رخ داده است!")
-            }   
+            }
             setIsPending(false)
         } catch (e) {
             mainContext?.onError("خطایی غیر منتظره رخ داده است")

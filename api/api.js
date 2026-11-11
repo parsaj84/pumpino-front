@@ -19,26 +19,16 @@ API.interceptors.request.use((config) => {
 
 async function refreshToken() {
     try {
-
-
         const response = await API.post("/users/refresh-token/", {}, { _retry: true })
-
-
-
         if (response.status === 200) {
             const accessToken = response.data.access_token
-
             localStorage.setItem("accessToken", accessToken)
-
-            console.log("token refreshed")
-
             return [true, accessToken]
         }
-
+        localStorage.setItem("accessToken" , "")
         return [false, null]
 
     } catch (e) {
-        console.log(e)
         return [false, null]
     }
 }

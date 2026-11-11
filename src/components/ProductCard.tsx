@@ -4,11 +4,10 @@ import {
   ShoppingBag,
   Eye,
   Tag,
-  MessageSquare,
   X
 } from 'lucide-react';
 import { formatPrice, getStockBadge, generateWhatsAppShareUrl } from '../utils/formatters';
-import { CartData, Product, StoreSettings } from '../types';
+import {  Product } from '../types';
 import Spinner from './Spinner';
 import API from '@/api/api';
 import { MainContext } from '../contexts/MainContext';
@@ -17,10 +16,8 @@ interface ProductCardProps {
   product: Product;
   brandName?: string;
   categoryName?: string;
-  storeSettings: StoreSettings;
   onViewDetails: (p: Product) => void;
   isInQuote: boolean;
-  setCartData: Dispatch<SetStateAction<CartData | null>>;
 
 }
 
@@ -29,21 +26,23 @@ export const ProductCard = ({
   product,
   brandName,
   categoryName,
-  storeSettings,
   onViewDetails,
   isInQuote,
-  setCartData,
+
 
 }: ProductCardProps) => {
   const mainContextValue = useContext(MainContext)
   const [isTogglingCartStatus, setIsTogglingCartStatus] = useState(false)
+
+  const setCartData = mainContextValue?.setCartData
+  const storeSettings = mainContextValue?.storeSettings
 
   async function handleAddToQuote() {
     try {
       setIsTogglingCartStatus(true);
       const { data, status } = await API.post("cart/add-to-cart/", { product_id: product.pk });
       if (status === 200) {
-        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...(prev?.cart_items || []), data.cart_item] }))
+        setCartData && setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...(prev?.cart_items || []), data.cart_item] }))
       } else {
         mainContextValue?.onError("خطا در هنگام اضافه کردن محصول به سبد خرید")
       }
@@ -58,7 +57,7 @@ export const ProductCard = ({
       setIsTogglingCartStatus(true)
       const { status, data } = await API.post("cart/remove-cart-item/", { product_id: product.pk })
       if (status === 200 && data.success) {
-        setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...(prev?.cart_items || [])].filter(ele => !(ele.product_id === product.pk.toString())) }))
+         setCartData && setCartData(prev => ({ total_items_price: data.cart_total_price, post_price: data.post_price, cart_items: [...(prev?.cart_items || [])].filter(ele => !(ele.product_id === product.pk.toString())) }))
       } else {
         mainContextValue?.onError("خطا در هنگام حذف کردن محصول به سبد خرید")
 
@@ -73,11 +72,7 @@ export const ProductCard = ({
 
   const stockBadge = getStockBadge(product.inventory > 0 ? true : false, product.inventory);
 
-  const handleShareWhatsApp = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const url = generateWhatsAppShareUrl(product, storeSettings);
-    window.open(url, '_blank');
-  };
+
   const files = product.files
   const file = files && files.length > 0 && files[0]
 

@@ -96,7 +96,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
 
       return ele
     })
-  }, [brandId , brands])
+  }, [brandId, brands])
 
 
   const handleEditingProductFeatureDelete = async (feature: ProductFeature) => {
@@ -131,26 +131,26 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
 
   const handleEditingProductFileDelete = async (file: ProductImagePayload) => {
     try {
-      if (!file || file?.pk) {
+      if (!file || !file?.pk) {
         mainContextValue?.onError("خطا در پردازش")
         return;
       }
+
       setDeletingFilePK(file?.pk || null)
       const { data, status } = await API.delete("products/product-file-delete/" + file.pk?.toString() + "/")
       if (status === 200) {
         const newImages = images.filter(ele => {
-
           if (ele.isCompiledFromEditingProduct && ele.pk === file.pk) {
             return false
-          }
+          };
           return true
-        })
+        });
         setImages(newImages)
         const newProducts = products.map(p => {
           if (p.pk === editingProduct.pk) {
 
             p.files = p.files && [...p.files].filter(image => {
-              return image.pk.toString() !== file.pk.toString()
+              return image.pk.toString() !== file?.pk.toString()
             })
           }
           return p
@@ -176,7 +176,7 @@ export default function ProductSubmitAdminModal({ products, categories, brands, 
       return categories.map(ele => ({ selected: ids.find(id => ele.pk === id) ? true : false, data: ele }))
     }
     return categories?.map(ele => ({ selected: false, data: ele }))
-  }, [categories , editingProduct ])
+  }, [categories, editingProduct])
 
   const [categoriesData, setCategoriesData] = useState<{ selected: boolean, data: Category }[]>(compileCategories)
 
